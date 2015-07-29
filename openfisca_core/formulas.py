@@ -103,7 +103,7 @@ class AbstractFormula(object):
             if category == ARITHMETIC and period_unit == MONTH:
                 array = monthly_arithmetic_function(self, simulation, period)
                 dated_holder = holder.at_period(period)
-                assert array == dated_holder.array, (array, dated_holder.array)
+                assert (array == dated_holder.array).all(), (array, dated_holder.array)
             else:
                 # assert False, u'Unexpected value for category attribute: {}'.format(category).encode('utf-8')
                 returned_period, array = self.base_function(simulation, period)
@@ -572,10 +572,11 @@ class SimpleFormula(AbstractFormula):
                     simulation.stringify_input_variables_infos(input_variables_infos), stringify_array(array)))
 
         dated_holder = holder.at_period(period)
-        assert dated_holder.array is not None, 'array from cache is None, it should have been stored in cache ' \
-            'previously, name: {}'.format(column.name)
-        assert array == dated_holder.array, 'array from cache is different than base function output, ' \
-            'name: {}'.format(column.name)
+        assert dated_holder.array is not None, \
+            'array from cache is None, it should have been stored in cache previously'
+        assert (array == dated_holder.array).all(), (
+            'array from cache is different than base function output', array, dated_holder.array,
+            )
         period_requested_formulas.remove(self)
         return dated_holder
 
