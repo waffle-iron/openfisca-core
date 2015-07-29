@@ -48,13 +48,21 @@ class NaNCreationError(Exception):
     pass
 
 
+# Formula categories and period units
+
+ARITHMETIC = 'ARITHMETIC'
+MONTH = 'MONTH'
+
+
 # Formulas
 
 
 class AbstractFormula(object):
+    category = None
     comments = None
     holder = None
     line_number = None
+    period_unit = None
     source_code = None
     source_file_path = None
 
@@ -62,8 +70,9 @@ class AbstractFormula(object):
         assert holder is not None
         self.holder = holder
 
-    def calculate_output(self, period):
-        return self.holder.compute(period).array
+    # TODO remove
+    # def calculate_output(self, period):
+    #     return self.holder.compute(period).array
 
     def clone(self, holder, keys_to_skip = None):
         """Copy the formula just enough to be able to run a new simulation without modifying the original simulation."""
@@ -80,6 +89,35 @@ class AbstractFormula(object):
         new_dict['holder'] = holder
 
         return new
+
+    def compute_base_function(self, simulation, period, is_external_output):
+        category = self.category
+        period_unit = self.period_unit
+        holder = self.holder
+        entity = holder.entity
+        column = holder.column
+        column_start_instant = periods.instant(column.start)
+        column_stop_instant = periods.instant(column.end)
+        if (column_start_instant is None or column_start_instant <= period.start) \
+                and (column_stop_instant is None or period.start <= column_stop_instant):
+            if category == ARITHMETIC and period_unit == MONTH:
+                array = monthly_arithmetic_function(self, simulation, period)
+                dated_holder = holder.at_period(period)
+                assert array == dated_holder.array, (array, dated_holder.array)
+            else:
+                # assert False, u'Unexpected value for category attribute: {}'.format(category).encode('utf-8')
+                returned_period, array = self.base_function(simulation, period)
+                # Store array in cache because legacy base functions don't do it (it was Formula.compute)
+                dated_holder = holder.at_period(period)
+                dated_holder.array = array
+        else:
+            # TODO Cache this array?
+            array = np.empty(entity.count, dtype = column.dtype)
+            array.fill(column.default)
+            # Store array in cache because Formula.compute retrieves it later
+            dated_holder = holder.at_period(period)
+            dated_holder.array = array
+        return array
 
     @property
     def real_formula(self):
@@ -118,6 +156,7 @@ class AbstractEntityToEntity(AbstractFormula):
                 input_variables_infos = [],
                 ))
 
+        # TODO Update method
         variable_holder = self.variable_holder
         variable_dated_holder = variable_holder.compute(period = period, accept_other_period = True,
             requested_formulas_by_period = requested_formulas_by_period)
@@ -259,6 +298,7 @@ class DatedFormula(AbstractGroupedFormula):
         return new
 
     def compute(self, period = None, requested_formulas_by_period = None):
+        # TODO Update method
         dated_holder = None
         stop_instant = period.stop
         for dated_formula in self.dated_formulas:
@@ -480,11 +520,6 @@ class SimpleFormula(AbstractFormula):
         debug_all = simulation.debug_all
         trace = simulation.trace
 
-        # Note: Don't compute intersection with column.start & column.end, because holder already does it:
-        # output_period = output_period.intersection(periods.instant(column.start), periods.instant(column.end))
-        # Note: Don't verify that the function result has already been computed, because this is the task of
-        # holder.compute().
-
         # Ensure that method is not called several times for the same period (infinite loop).
         if requested_formulas_by_period is None:
             requested_formulas_by_period = {}
@@ -511,45 +546,11 @@ class SimpleFormula(AbstractFormula):
                 input_variables_infos = [],
                 ))
 
-        try:
-            formula_result = self.base_function(simulation, period)
-        except:
-            log.error(u'An error occurred while calling formula {}@{}<{}> in module {}'.format(
-                column.name, entity.key_plural, str(period), self.function.__module__,
-                ))
-            raise
-        else:
-            try:
-                output_period, array = formula_result
-            except ValueError:
-                raise ValueError(u'A formula must return "period, array": {}@{}<{}> in module {}'.format(
-                    column.name, entity.key_plural, str(period), self.function.__module__,
-                    ).encode('utf-8'))
-        assert output_period[1] <= period[1] <= output_period.stop, \
-            u"Function {}@{}<{}>() --> <{}>{} returns an output period that doesn't include start instant of" \
-            u"requested period".format(column.name, entity.key_plural, str(period), str(output_period),
-                stringify_array(array)).encode('utf-8')
-        assert isinstance(array, np.ndarray), u"Function {}@{}<{}>() --> <{}>{} doesn't return a numpy array".format(
-            column.name, entity.key_plural, str(period), str(output_period), array).encode('utf-8')
-        assert array.size == entity.count, \
-            u"Function {}@{}<{}>() --> <{}>{} returns an array of size {}, but size {} is expected for {}".format(
-                column.name, entity.key_plural, str(period), str(output_period), stringify_array(array),
-                array.size, entity.count, entity.key_singular).encode('utf-8')
-        if debug:
-            try:
-                # cf http://stackoverflow.com/questions/6736590/fast-check-for-nan-in-numpy
-                if np.isnan(np.min(array)):
-                    nan_count = np.count_nonzero(np.isnan(array))
-                    raise NaNCreationError(u"Function {}@{}<{}>() --> <{}>{} returns {} NaN value(s)".format(
-                        column.name, entity.key_plural, str(period), str(output_period), stringify_array(array),
-                        nan_count).encode('utf-8'))
-            except TypeError:
-                pass
-        if array.dtype != column.dtype:
-            array = array.astype(column.dtype)
+        is_external_output = False  # TODO
+        array = self.compute_base_function(simulation, period, is_external_output)
 
         if debug or trace:
-            variable_infos = (column.name, output_period)
+            variable_infos = (column.name, period)
             step = simulation.traceback.get(variable_infos)
             if step is None:
                 simulation.traceback[variable_infos] = step = dict(
@@ -567,12 +568,14 @@ class SimpleFormula(AbstractFormula):
                     )
             step['is_computed'] = True
             if debug and (debug_all or not has_only_default_input_variables):
-                log.info(u'<=> {}@{}<{}>({}) --> <{}>{}'.format(column.name, entity.key_plural, str(period),
-                    simulation.stringify_input_variables_infos(input_variables_infos), str(output_period),
-                    stringify_array(array)))
+                log.info(u'<=> {}@{}<{}>({}) --> {}'.format(column.name, entity.key_plural, str(period),
+                    simulation.stringify_input_variables_infos(input_variables_infos), stringify_array(array)))
 
-        dated_holder = holder.at_period(output_period)
-        dated_holder.array = array
+        dated_holder = holder.at_period(period)
+        assert dated_holder.array is not None, 'array from cache is None, it should have been stored in cache ' \
+            'previously, name: {}'.format(column.name)
+        assert array == dated_holder.array, 'array from cache is different than base function output, ' \
+            'name: {}'.format(column.name)
         period_requested_formulas.remove(self)
         return dated_holder
 
@@ -905,6 +908,7 @@ class FormulaColumnMetaclass(type):
         return new_filled_column(
             base_function = attributes.pop('base_function', UnboundLocalError),
             calculate_output = attributes.pop('calculate_output', UnboundLocalError),
+            category = attributes.pop('category', UnboundLocalError),
             cerfa_field = attributes.pop('cerfa_field', UnboundLocalError),
             column = attributes.pop('column', UnboundLocalError),
             comments = comments,
@@ -917,6 +921,7 @@ class FormulaColumnMetaclass(type):
             line_number = line_number,
             module = attributes.pop('__module__'),
             name = unicode(name),
+            period_unit = attributes.pop('period_unit', UnboundLocalError),
             reference_column = reference_column,
             set_input = attributes.pop('set_input', UnboundLocalError),
             source_code = source_code,
@@ -983,7 +988,7 @@ def last_duration_last_value(formula, simulation, period):
             if last_period.start <= period.start and (formula.function is None or last_period.stop >= period.stop):
                 return periods.Period((last_period[0], period.start, last_period[2])), last_array
     if formula.function is not None:
-        return formula.function(simulation, period)
+        return period, exec_function(formula, simulation, period)
     column = holder.column
     array = np.empty(holder.entity.count, dtype = column.dtype)
     array.fill(column.default)
@@ -1012,7 +1017,7 @@ def make_reference_formula_decorator(entity_class_by_symbol = None, update = Fal
 
 def missing_value(formula, simulation, period):
     if formula.function is not None:
-        return formula.function(simulation, period)
+        return period, exec_function(formula, simulation, period)
     holder = formula.holder
     column = holder.column
     raise ValueError(u"Missing value for variable {} at {}".format(column.name, period))
@@ -1028,13 +1033,32 @@ def neutralize_column(column):
         )
 
 
-def new_filled_column(base_function = UnboundLocalError, calculate_output = UnboundLocalError,
-        cerfa_field = UnboundLocalError, column = UnboundLocalError, comments = UnboundLocalError, doc = None,
-        entity_class = UnboundLocalError, formula_class = UnboundLocalError, is_permanent = UnboundLocalError,
-        label = UnboundLocalError, law_reference = UnboundLocalError, line_number = UnboundLocalError, module = None,
-        name = None, reference_column = None, set_input = UnboundLocalError, source_code = UnboundLocalError,
-        source_file_path = UnboundLocalError, start_date = UnboundLocalError, stop_date = UnboundLocalError,
-        url = UnboundLocalError, **specific_attributes):
+def new_filled_column(
+    base_function = UnboundLocalError,
+    calculate_output = UnboundLocalError,
+    category = UnboundLocalError,
+    cerfa_field = UnboundLocalError,
+    column = UnboundLocalError,
+    comments = UnboundLocalError,
+    doc = None,
+    entity_class = UnboundLocalError,
+    formula_class = UnboundLocalError,
+    is_permanent = UnboundLocalError,
+    label = UnboundLocalError,
+    law_reference = UnboundLocalError,
+    line_number = UnboundLocalError,
+    module = None,
+    name = None,
+    period_unit = UnboundLocalError,
+    reference_column = None,
+    set_input = UnboundLocalError,
+    source_code = UnboundLocalError,
+    source_file_path = UnboundLocalError,
+    start_date = UnboundLocalError,
+    stop_date = UnboundLocalError,
+    url = UnboundLocalError,
+    **specific_attributes
+        ):
     # Validate arguments.
 
     if reference_column is not None:
@@ -1046,6 +1070,8 @@ def new_filled_column(base_function = UnboundLocalError, calculate_output = Unbo
 
     if calculate_output is UnboundLocalError:
         calculate_output = None if reference_column is None else reference_column.formula_class.calculate_output
+
+    # assert category is not UnboundLocalError and category is not None, category
 
     if cerfa_field is UnboundLocalError:
         cerfa_field = None if reference_column is None else reference_column.cerfa_field
@@ -1105,6 +1131,8 @@ def new_filled_column(base_function = UnboundLocalError, calculate_output = Unbo
         line_number = None if reference_column is None else reference_column.formula_class.line_number
     elif isinstance(line_number, str):
         line_number = line_number.decode('utf-8')
+
+    # assert period_unit is not UnboundLocalError and period_unit is not None, period_unit
 
     if set_input is UnboundLocalError:
         set_input = None if reference_column is None else reference_column.formula_class.set_input
@@ -1172,6 +1200,12 @@ def new_filled_column(base_function = UnboundLocalError, calculate_output = Unbo
 
     if calculate_output is not None:
         formula_class_attributes['calculate_output'] = calculate_output
+
+    formula_class_attributes['category'] = category
+
+    if period_unit is UnboundLocalError:
+        period_unit = None
+    formula_class_attributes['period_unit'] = period_unit
 
     if set_input is not None:
         formula_class_attributes['set_input'] = set_input
@@ -1281,7 +1315,7 @@ def new_filled_column(base_function = UnboundLocalError, calculate_output = Unbo
 
 def permanent_default_value(formula, simulation, period):
     if formula.function is not None:
-        return formula.function(simulation, period)
+        return period, exec_function(formula, simulation, period)
     holder = formula.holder
     column = holder.column
     array = np.empty(holder.entity.count, dtype = column.dtype)
@@ -1340,6 +1374,89 @@ def reference_input_variable(base_function = None, calculate_output = None, colu
     entity_column_by_name[name] = column
 
 
+# Base functions
+
+def exec_function(formula, simulation, period):
+    holder = formula.holder
+    column = holder.column
+    entity = holder.entity
+    debug = simulation.debug
+    try:
+        array = formula.function(simulation, period)
+    except:
+        log.error(u'An error occurred while calling formula {}@{}<{}> in module {}'.format(
+            column.name, entity.key_plural, str(period), formula.function.__module__,
+            ))
+        raise
+    # TODO Remove this backward compatibility check.
+    if isinstance(array, tuple):
+        log.debug('Tuple detected! {}'.format(array))
+        period, array = array
+    assert isinstance(array, np.ndarray), u"Function {}@{}<{}>() --> {}, doesn't return a numpy array".format(
+        column.name, entity.key_plural, str(period), array).encode('utf-8')
+    assert array.size == entity.count, \
+        u'Function {}@{}<{}>() --> {} returns an array of size {}, but size {} is expected for {}'.format(
+            column.name, entity.key_plural, str(period), stringify_array(array),
+            array.size, entity.count, entity.key_singular).encode('utf-8')
+    if debug:
+        try:
+            # cf http://stackoverflow.com/questions/6736590/fast-check-for-nan-in-numpy
+            if np.isnan(np.min(array)):
+                nan_count = np.count_nonzero(np.isnan(array))
+                raise NaNCreationError(u'Function {}@{}<{}>() --> {} returns {} NaN value(s)'.format(
+                    column.name, entity.key_plural, str(period), stringify_array(array), nan_count).encode('utf-8'))
+        except TypeError:
+            pass
+    if array.dtype != column.dtype:
+        log.debug(u'Cast array dtype: {} to column dtype: {}'.format(array.dtype, column.dtype))
+        array = array.astype(column.dtype)
+    return array
+
+
+def exec_function_or_default(formula, simulation, period):
+    holder = formula.holder
+    column = holder.column
+    if formula.function is not None:
+        array = exec_function(formula, simulation, period)
+    else:
+        array = np.empty(holder.entity.count, dtype = column.dtype)
+        array.fill(column.default)
+    return array
+
+
+# def monthly_arithmetic_function(formula, simulation, period, is_external_output):
+def monthly_arithmetic_function(formula, simulation, period):
+    """
+    If requested period is greater than a month (a year or many months),
+    then calculate all months and sum the results.
+    """
+    holder = formula.holder
+    column = holder.column
+    array_by_period = holder._array_by_period
+    if array_by_period is None:
+        holder._array_by_period = array_by_period = {}
+    cached_array = array_by_period.get(period)
+    if cached_array is not None:
+        return cached_array
+    if period.unit == u'month' and period.size == 1:
+        array = exec_function_or_default(formula, simulation, period)
+        array_by_period[period] = array
+        return array
+    else:
+        after_instant = period.start.offset(period.size, period.unit)
+        array = np.zeros(holder.entity.count, dtype = column.dtype)
+        month = period.start.period(u'month')
+        while month.start < after_instant:
+            month_array = array_by_period.get(month)
+            if month_array is None:
+                month_array = exec_function_or_default(formula, simulation, month)
+                array_by_period[month] = month_array
+            array += month_array
+            month = month.offset(1)
+        array_by_period[period] = array
+        return array
+
+
 def requested_period_added_value(formula, simulation, period):
     # This formula is used for variables that can be added to match requested period.
     holder = formula.holder
@@ -1373,7 +1490,7 @@ def requested_period_added_value(formula, simulation, period):
             if array is not None:
                 return period, array
     if formula.function is not None:
-        return formula.function(simulation, period)
+        return period, exec_function(formula, simulation, period)
     array = np.empty(holder.entity.count, dtype = column.dtype)
     array.fill(column.default)
     return period, array
@@ -1381,7 +1498,7 @@ def requested_period_added_value(formula, simulation, period):
 
 def requested_period_default_value(formula, simulation, period):
     if formula.function is not None:
-        return formula.function(simulation, period)
+        return period, exec_function(formula, simulation, period)
     holder = formula.holder
     column = holder.column
     array = np.empty(holder.entity.count, dtype = column.dtype)
@@ -1406,7 +1523,7 @@ def requested_period_last_value(formula, simulation, period):
             if last_period.start <= period.start and (formula.function is None or last_period.stop >= period.stop):
                 return period, last_array
     if formula.function is not None:
-        return formula.function(simulation, period)
+        return period, exec_function(formula, simulation, period)
     column = holder.column
     array = np.empty(holder.entity.count, dtype = column.dtype)
     array.fill(column.default)

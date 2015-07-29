@@ -144,30 +144,11 @@ class Holder(object):
         simulation = entity.simulation
         if period is None:
             period = simulation.period
-        column = self.column
 
-        # First look for dated_holders covering the whole period (without hole).
-        dated_holder = self.at_period(period)
-        if dated_holder.array is not None:
-            return dated_holder
-        assert self._array is None  # self._array should always be None when dated_holder.array is None.
-
-        column_start_instant = periods.instant(column.start)
-        column_stop_instant = periods.instant(column.end)
-        if (column_start_instant is None or column_start_instant <= period.start) \
-                and (column_stop_instant is None or period.start <= column_stop_instant):
-            formula_dated_holder = self.formula.compute(period = period,
-                requested_formulas_by_period = requested_formulas_by_period)
-            assert formula_dated_holder is not None
-            if not column.is_permanent:
-                assert accept_other_period or formula_dated_holder.period == period, \
-                    u"Requested period {} differs from {} returned by variable {}".format(period,
-                        formula_dated_holder.period, column.name)
-            return formula_dated_holder
-        array = np.empty(entity.count, dtype = column.dtype)
-        array.fill(column.default)
-        dated_holder.array = array
-        return dated_holder
+        formula_dated_holder = self.formula.compute(period = period,
+            requested_formulas_by_period = requested_formulas_by_period)
+        assert formula_dated_holder is not None
+        return formula_dated_holder
 
     def compute_add(self, period = None, requested_formulas_by_period = None):
         dated_holder = self.at_period(period)
