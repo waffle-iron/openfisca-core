@@ -53,6 +53,7 @@ class NaNCreationError(Exception):
 ARITHMETIC = 'ARITHMETIC'
 STATE = 'STATE'
 MONTH = 'MONTH'
+YEAR = 'YEAR'
 
 
 # Formulas
@@ -103,6 +104,10 @@ class AbstractFormula(object):
                 and (column_stop_instant is None or period.start <= column_stop_instant):
             if category == ARITHMETIC and period_unit == MONTH:
                 array = monthly_arithmetic_function(self, simulation, period)
+                dated_holder = holder.at_period(period)
+                assert (array == dated_holder.array).all(), (array, dated_holder.array)
+            elif category == ARITHMETIC and period_unit == YEAR:
+                array = yearly_arithmetic_function(self, simulation, period)
                 dated_holder = holder.at_period(period)
                 assert (array == dated_holder.array).all(), (array, dated_holder.array)
             elif category == STATE and period_unit == MONTH:
@@ -1502,6 +1507,41 @@ def monthly_state_function(formula, simulation, period):
             array = np.empty(holder.entity.count, dtype = column.dtype)
             array.fill(column.default)
             return array
+
+def yearly_arithmetic_function(formula, simulation, period, is_external_output = False):
+    holder = formula.holder
+    column = holder.column
+    array_by_period = holder._array_by_period
+    if array_by_period is None:
+        holder._array_by_period = array_by_period = {}
+    cached_array = array_by_period.get(period)
+    if cached_array is not None:
+        return cached_array
+    if period.unit == u'year' and period.size == 1:
+        array = exec_function_or_default(formula, simulation, period)
+        array_by_period[period] = array
+        return array
+    elif period.unit == u"year":
+        after_instant = period.start.offset(period.size, period.unit)
+        array = np.zeros(holder.entity.count, dtype = column.dtype)
+        year = period.start.period(u'year')
+        while year.start < after_instant:
+            year_array = array_by_period.get(year)
+            if year_array is None:
+                year_array = exec_function_or_default(formula, simulation, year)
+                array_by_period[year] = year_array
+            array += year_array
+            year = year.offset(1)
+        array_by_period[period] = array
+        return array
+    elif is_external_output:
+        print("TODO")
+        #TODO: divice
+    else:
+        log.error(u'Yearly arithmetic formula {0} cannot be calculated for a monthly period {1}. You can use explicitely calculate_divide if you \
+wish to get a monthly approximation of {0}'.format(
+            column.name, str(period)))
+        raise Exception
 
 
 def requested_period_added_value(formula, simulation, period):
