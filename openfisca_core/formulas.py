@@ -51,6 +51,7 @@ class NaNCreationError(Exception):
 # Formula categories and period units
 
 ARITHMETIC = 'ARITHMETIC'
+STATE = 'STATE'
 MONTH = 'MONTH'
 
 
@@ -104,6 +105,9 @@ class AbstractFormula(object):
                 array = monthly_arithmetic_function(self, simulation, period)
                 dated_holder = holder.at_period(period)
                 assert (array == dated_holder.array).all(), (array, dated_holder.array)
+            elif category == STATE and period_unit == MONTH:
+                array = monthly_state_function(self, simulation, period)
+                dated_holder = holder.at_period(period)
             else:
                 # assert False, u'Unexpected value for category attribute: {}'.format(category).encode('utf-8')
                 returned_period, array = self.base_function(simulation, period)
