@@ -1330,7 +1330,7 @@ def permanent_default_value(formula, simulation, period):
 
 def reference_input_variable(base_function = None, calculate_output = None, column = None, entity_class = None,
         is_permanent = False, label = None, name = None, set_input = None, start_date = None, stop_date = None,
-        update = False, url = None):
+        update = False, url = None, category = None, period_unit = None):
     """Define an input variable and add it to relevant entity class."""
     if not isinstance(column, columns.Column):
         column = column()
@@ -1352,6 +1352,8 @@ def reference_input_variable(base_function = None, calculate_output = None, colu
         __module__ = inspect.getmodule(caller_frame).__name__,
         base_function = base_function,
         line_number = caller_frame.f_lineno,
+        period_unit = period_unit,
+        category = category,
         ))
     if calculate_output is not None:
         formula_class.calculate_output = calculate_output
