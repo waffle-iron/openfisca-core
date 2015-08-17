@@ -154,7 +154,7 @@ class AbstractEntityToEntity(AbstractFormula):
             simulation.stack_trace.append(dict(
                 parameters_infos = [],
                 input_variables_infos = [],
-                ))
+            ))
 
         # TODO Update method
         variable_holder = self.variable_holder
@@ -172,7 +172,7 @@ class AbstractEntityToEntity(AbstractFormula):
             if step is None:
                 simulation.traceback[variable_infos] = step = dict(
                     holder = holder,
-                    )
+                )
             step.update(simulation.stack_trace.pop())
             input_variables_infos = step['input_variables_infos']
             if not debug_all or trace:
@@ -181,8 +181,8 @@ class AbstractEntityToEntity(AbstractFormula):
                     for input_holder, input_variable_period in (
                         (simulation.get_holder(input_variable_name), input_variable_period1)
                         for input_variable_name, input_variable_period1 in input_variables_infos
-                        )
                     )
+                )
             step['is_computed'] = True
             if debug and (debug_all or not has_only_default_input_variables):
                 log.info(u'<=> {}@{}<{}>({}) --> <{}>{}'.format(column.name, entity.key_plural, str(period),
@@ -1456,6 +1456,46 @@ def monthly_arithmetic_function(formula, simulation, period):
             month = month.offset(1)
         array_by_period[period] = array
         return array
+
+
+def monthly_state_function(formula, simulation, period):
+    """
+    If requested period is greather than a month,
+    then return the first known value of this period
+    or exec the function for the first month if it exists
+    """
+    holder = formula.holder
+    column = holder.column
+    array_by_period = holder._array_by_period
+    if array_by_period is None:
+        holder._array_by_period = array_by_period = {}
+    cached_array = array_by_period.get(period)
+    if cached_array is not None:
+        return cached_array
+    if period.unit == u'month' and period.size == 1:
+        array = exec_function_or_default(formula, simulation, period)
+        array_by_period[period] = array
+        return array
+    else:
+        first_month = period.start.period(u'month')
+        cached_array_first_month = array_by_period.get(first_month)
+        if cached_array_first_month is not None:
+            return cached_array_first_month
+        elif formula.function is not None:
+            return exec_function(formula, simulation, first_month)
+        else:
+            month = first_month.offset(1)
+            after_instant = period.start.offset(period.size, period.unit)
+            while month.start < after_instant:
+                month_array = array_by_period.get(month)
+                if month_array is not None:
+                    array_by_period[period] = month_array
+                    return month_array
+                month = month.offset(1)
+            # Cas où on n'a pas trouvé de valeur dans le cache
+            array = np.empty(holder.entity.count, dtype = column.dtype)
+            array.fill(column.default)
+            return array
 
 
 def requested_period_added_value(formula, simulation, period):
