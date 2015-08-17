@@ -112,7 +112,7 @@ class Holder(object):
         return dated_holder.array
 
     def calculate_output(self, period):
-        return self.formula.calculate_output(period)
+        return self.calculate(period)
 
     def clone(self, entity):
         """Copy the holder just enough to be able to run a new simulation without modifying the original simulation."""

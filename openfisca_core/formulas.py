@@ -1074,7 +1074,7 @@ def new_filled_column(
     assert isinstance(name, unicode)
 
     if calculate_output is UnboundLocalError:
-        calculate_output = None if reference_column is None else reference_column.formula_class.calculate_output
+        calculate_output = None #if reference_column is None else reference_column.formula_class.calculate_output
 
     # assert category is not UnboundLocalError and category is not None, category
 
