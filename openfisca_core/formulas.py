@@ -1289,9 +1289,9 @@ def permanent_default_value(formula, simulation, period):
     return period, array
 
 
-def reference_input_variable(base_function = None, calculate_output = None, column = None, entity_class = None,
-        is_permanent = False, label = None, name = None, set_input = None, start_date = None, stop_date = None,
-        update = False, url = None):
+def reference_input_variable(base_function = None, calculate_output = None, cerfa_field = None, column = None,
+        entity_class = None, is_permanent = False, label = None, name = None, set_input = None, start_date = None,
+        stop_date = None, update = False, url = None, val_type = None):
     """Define an input variable and add it to relevant entity class."""
     if not isinstance(column, columns.Column):
         column = column()
@@ -1328,11 +1328,16 @@ def reference_input_variable(base_function = None, calculate_output = None, colu
         column.is_permanent = True
     column.label = label
     column.name = name
+    if cerfa_field is not None:
+        assert isinstance(cerfa_field, basestring) or isinstance(cerfa_field, collections.Mapping)
+        column.cerfa_field = cerfa_field
     if start_date is not None:
         assert isinstance(start_date, datetime.date)
         column.start = start_date
     if url is not None:
         column.url = unicode(url)
+    if val_type is not None:
+        column.val_type = unicode(val_type)
 
     entity_column_by_name = entity_class.column_by_name
     if not update:
