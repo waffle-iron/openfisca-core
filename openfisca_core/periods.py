@@ -591,6 +591,20 @@ class Period(tuple):
         return self[2]
 
     @property
+    def size_in_months(self):
+        """Return the size of the period in months.
+
+        >>> period('month', '2012-2-29', 4).size_in_months
+        4
+        >>> period('year', '2012', 1).size_in_months
+        12
+        """
+        if (self[0] == MONTH):
+            return self[2]
+        else:
+            return self[2] * 12
+
+    @property
     def start(self):
         """Return the first day of the period as an Instant instance.
 
