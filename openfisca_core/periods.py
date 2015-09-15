@@ -607,6 +607,14 @@ class Period(tuple):
         else:
             return self[2] * 12
 
+    def split_in_months(self):
+        month = self.this_month
+        months = []
+        while (month.stop <= self.stop):
+            months.append(month)
+            month = month.offset(1, MONTH)
+        return months
+
     @property
     def start(self):
         """Return the first day of the period as an Instant instance.
