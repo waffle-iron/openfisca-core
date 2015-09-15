@@ -48,13 +48,10 @@ class NaNCreationError(Exception):
     pass
 
 
-# Formula categories and period units
+# Formula categories
 
 ARITHMETIC = 'ARITHMETIC'
 STATE = 'STATE'
-MONTH = 'MONTH'
-YEAR = 'YEAR'
-
 
 # Formulas
 
@@ -102,15 +99,15 @@ class AbstractFormula(object):
         column_stop_instant = periods.instant(column.end)
         if (column_start_instant is None or column_start_instant <= period.start) \
                 and (column_stop_instant is None or period.start <= column_stop_instant):
-            if category == ARITHMETIC and period_unit == MONTH:
+            if category == ARITHMETIC and period_unit == periods.MONTH:
                 array = monthly_arithmetic_function(self, simulation, period)
                 dated_holder = holder.at_period(period)
                 assert (array == dated_holder.array).all(), (array, dated_holder.array)
-            elif category == ARITHMETIC and period_unit == YEAR:
+            elif category == ARITHMETIC and period_unit == periods.YEAR:
                 array = yearly_arithmetic_function(self, simulation, period)
                 dated_holder = holder.at_period(period)
                 assert (array == dated_holder.array).all(), (array, dated_holder.array)
-            elif category == STATE and period_unit == MONTH:
+            elif category == STATE and period_unit == periods.MONTH:
                 array = monthly_state_function(self, simulation, period)
                 dated_holder = holder.at_period(period)
             else:

@@ -39,6 +39,8 @@ import re
 
 from . import conv
 
+MONTH = u'month'
+YEAR = u'year'
 
 N_ = lambda message: message
 # Note: weak references are not used, because Python 2.7 can't create weak reference to 'datetime.date' objects.
