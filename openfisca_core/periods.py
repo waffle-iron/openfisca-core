@@ -39,6 +39,9 @@ import re
 
 from . import conv
 
+import logging
+log = logging.getLogger(__name__)
+
 MONTH = u'month'
 YEAR = u'year'
 
@@ -1232,3 +1235,19 @@ def make_json_or_python_to_period(min_date = None, max_date = None):
 
 
 json_or_python_to_period = make_json_or_python_to_period()
+
+
+# Utils
+
+def get_wrapping_period(period, wrapping_period_unit):
+
+    if (wrapping_period_unit == YEAR):
+        wrapping_period = period.start.offset('first-of', 'year').period('year')
+    elif (wrapping_period_unit == MONTH):
+        wrapping_period = period.start.offset('first-of', 'month').period('month')
+    else:
+        log.error('Unknown wrapping_period_unit {0}'.format(wrapping_period_unit))
+
+    assert (period.stop <= wrapping_period.stop), u'Calling get_wrapping_period with a period {0} that is not contained in a single {1}'.format(period, wrapping_period_unit)
+
+    return wrapping_period
