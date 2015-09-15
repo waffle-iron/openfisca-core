@@ -260,28 +260,13 @@ class Holder(object):
         if dated_holder.array is not None:
             return dated_holder
 
-        array = None
-        unit = period[0]
-        year, month, day = period.start
-        if unit == u'month':
-            dated_holder = self.compute(accept_other_period = True, period = period,
-                requested_formulas_by_period = requested_formulas_by_period)
-            assert dated_holder.period.start <= period.start and period.stop <= dated_holder.period.stop, \
-                "Period {} returned by variable {} doesn't include requested period {}.".format(
-                    dated_holder.period, self.column.name, period)
-            if dated_holder.period.unit == u'month':
-                array = dated_holder.array * period.size / dated_holder.period.size
-            else:
-                assert dated_holder.period.unit == u'year', \
-                    "Requested a monthly or yearly period. Got {} returned by variable {}.".format(
-                        dated_holder.period, self.column.name)
-                array = dated_holder.array * period.size / (12 * dated_holder.period.size)
-            dated_holder = self.at_period(period)
-            dated_holder.array = array
-            return dated_holder
-        else:
-            assert unit == u'year', unit
-            return self.compute(period = period, requested_formulas_by_period = requested_formulas_by_period)
+        wrapping_period = periods.get_wrapping_period(period, self.formula.period_unit)
+        wrapping_period_array = self.compute(period = wrapping_period, requested_formulas_by_period = requested_formulas_by_period).array
+        array = wrapping_period_array * period.size_in_months / wrapping_period.size_in_months
+        dated_holder.array = array
+
+        return dated_holder
+
 
     def delete_arrays(self):
         if self._array is not None:
