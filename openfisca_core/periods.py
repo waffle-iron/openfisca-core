@@ -691,6 +691,21 @@ class Period(tuple):
     def unit(self):
         return self[0]
 
+    # Reference periods
+
+    @property
+    def last_3_months(self):
+        return self.this_month.start.period('month', 3).offset(-3)
+
+    @property
+    def this_year(self):
+        return self.start.offset('first-of', 'year').period('year') 
+
+    @property
+    def this_month(self):
+        return self.start.offset('first-of', 'month').period('month')
+
+
 
     # Reference periods
 
@@ -1242,11 +1257,11 @@ json_or_python_to_period = make_json_or_python_to_period()
 def get_wrapping_period(period, wrapping_period_unit):
 
     if (wrapping_period_unit == YEAR):
-        wrapping_period = period.start.offset('first-of', 'year').period('year')
+        wrapping_period = period.this_year
     elif (wrapping_period_unit == MONTH):
-        wrapping_period = period.start.offset('first-of', 'month').period('month')
+        wrapping_period = period.this_month
     else:
-        log.error('Unknown wrapping_period_unit {0}'.format(wrapping_period_unit))
+        log.error(u'Unknown wrapping_period_unit {0}'.format(wrapping_period_unit))
 
     assert (period.stop <= wrapping_period.stop), u'Calling get_wrapping_period with a period {0} that is not contained in a single {1}'.format(period, wrapping_period_unit)
 
