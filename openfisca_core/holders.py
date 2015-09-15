@@ -204,56 +204,28 @@ class Holder(object):
                 requested_period = requested_start.offset(returned_period_months, u'month').period(u'month')
 
     def compute_add_divide(self, period = None, requested_formulas_by_period = None):
+
         dated_holder = self.at_period(period)
         if dated_holder.array is not None:
             return dated_holder
 
-        array = None
-        unit = period.unit
-        if unit == u'month':
-            remaining_period_months = period.size
-        else:
-            assert unit == u'year', unit
-            remaining_period_months = period.size * 12
-        requested_period = period.start.period(unit)
-        while True:
-            dated_holder = self.compute(accept_other_period = True, period = requested_period,
-                requested_formulas_by_period = requested_formulas_by_period)
-            requested_start = requested_period.start
-            returned_period = dated_holder.period
-            returned_start = returned_period.start
-            assert returned_start.day == 1
-            # Note: A dated formula may start after requested period.
-            # assert returned_start <= requested_start <= returned_period.stop, \
-            #     "Period {} returned by variable {} doesn't include start of requested period {}.".format(
-            #         returned_period, self.column.name, requested_period)
-            requested_start_months = requested_start.year * 12 + requested_start.month
-            returned_start_months = returned_start.year * 12 + returned_start.month
-            if returned_period.unit == u'month':
-                intersection_months = min(requested_start_months + requested_period.size,
-                    returned_start_months + returned_period.size) - requested_start_months
-                intersection_array = dated_holder.array * intersection_months / returned_period.size
+        months = period.split_in_months()
+        wrapping_periods = {}
+        for month in months:
+            wrapping_period = periods.get_wrapping_period(month, self.formula.period_unit)
+            if wrapping_period not in wrapping_periods:
+                wrapping_periods[wrapping_period] = 1
             else:
-                assert returned_period.unit == u'year', \
-                    "Requested a monthly or yearly period. Got {} returned by variable {}.".format(
-                        returned_period, self.column.name)
-                intersection_months = min(requested_start_months + requested_period.size,
-                    returned_start_months + returned_period.size * 12) - requested_start_months
-                intersection_array = dated_holder.array * intersection_months / (returned_period.size * 12)
-            if array is None:
-                array = intersection_array.copy()
-            else:
-                array += intersection_array
+                wrapping_periods[wrapping_period] += 1
 
-            remaining_period_months -= intersection_months
-            if remaining_period_months <= 0:
-                dated_holder = self.at_period(period)
-                dated_holder.array = array
-                return dated_holder
-            if remaining_period_months % 12 == 0:
-                requested_period = requested_start.offset(intersection_months, u'month').period(u'year')
-            else:
-                requested_period = requested_start.offset(intersection_months, u'month').period(u'month')
+        result = self.get_empty_array()
+        for wrapping_period, weight in wrapping_periods.iteritems():
+            wrapping_period_array = self.compute(period = wrapping_period, requested_formulas_by_period = requested_formulas_by_period).array
+            result += wrapping_period_array * weight / wrapping_period.size_in_months
+
+        dated_holder.array = result
+
+        return dated_holder
 
     def compute_divide(self, period = None, requested_formulas_by_period = None):
         dated_holder = self.at_period(period)
@@ -284,6 +256,9 @@ class Holder(object):
             if array is not None:
                 return array
         return None
+
+    def get_empty_array(self):
+        return np.zeros(self.entity.count, dtype = self.column.dtype)
 
     def graph(self, edges, get_input_variables_and_parameters, nodes, visited):
         column = self.column
