@@ -148,6 +148,11 @@ class Holder(object):
         if period is None:
             period = simulation.period
 
+        # Check the cache
+        dated_holder = self.at_period(period)
+        if dated_holder.array is not None:
+            return dated_holder
+
         formula_dated_holder = self.formula.compute(period = period,
             requested_formulas_by_period = requested_formulas_by_period)
         assert formula_dated_holder is not None
