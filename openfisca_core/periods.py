@@ -39,9 +39,6 @@ import re
 
 from . import conv
 
-import logging
-log = logging.getLogger(__name__)
-
 MONTH = u'month'
 YEAR = u'year'
 
@@ -1269,7 +1266,7 @@ def get_wrapping_period(period, wrapping_period_unit):
     elif (wrapping_period_unit == MONTH):
         wrapping_period = period.this_month
     else:
-        log.error(u'Unknown wrapping_period_unit {0}'.format(wrapping_period_unit))
+        raise ValueError
 
     assert (period.stop <= wrapping_period.stop), u'Calling get_wrapping_period with a period {0} that is not contained in a single {1}'.format(period, wrapping_period_unit)
 

@@ -30,6 +30,9 @@ import numpy as np
 from . import periods
 from .tools import empty_clone
 
+import logging
+log = logging.getLogger(__name__)
+
 
 class DatedHolder(object):
     """A view of an holder, for a given period"""
@@ -209,10 +212,16 @@ class Holder(object):
         if dated_holder.array is not None:
             return dated_holder
 
+        # Retrocompatibility
+        period_unit = self.formula.period_unit
+        if (period_unit is None):
+            log.warning(u'Calling compute_add_divide for variable {0}, which doesn’t have a period_unit. Using YEAR by default'.format(self.column.name))
+            period_unit = periods.YEAR
+
         months = period.split_in_months()
         wrapping_periods = {}
         for month in months:
-            wrapping_period = periods.get_wrapping_period(month, self.formula.period_unit)
+            wrapping_period = periods.get_wrapping_period(month, period_unit)
             if wrapping_period not in wrapping_periods:
                 wrapping_periods[wrapping_period] = 1
             else:
@@ -228,11 +237,18 @@ class Holder(object):
         return dated_holder
 
     def compute_divide(self, period = None, requested_formulas_by_period = None):
+
         dated_holder = self.at_period(period)
         if dated_holder.array is not None:
             return dated_holder
 
-        wrapping_period = periods.get_wrapping_period(period, self.formula.period_unit)
+        # Retrocompatibility
+        period_unit = self.formula.period_unit
+        if (period_unit is None):
+            log.warning(u'Calling compute_divide for variable {0}, which doesn’t have a period_unit. Using YEAR by default'.format(self.column.name))
+            period_unit = periods.YEAR
+
+        wrapping_period = periods.get_wrapping_period(period, period_unit)
         wrapping_period_array = self.compute(period = wrapping_period, requested_formulas_by_period = requested_formulas_by_period).array
         array = wrapping_period_array * period.size_in_months / wrapping_period.size_in_months
         dated_holder.array = array
