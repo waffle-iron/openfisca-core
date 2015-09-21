@@ -757,6 +757,7 @@ class SimpleFormula(AbstractFormula):
 
 class ConversionColumnMetaclass(type):
     """The metaclass of ConversionColumn classes: It generates a column instead of a formula ConversionColumn class."""
+
     def __new__(cls, name, bases, attributes):
         """Return a column containing a casting formula, built from ConversionColumn class definition."""
         assert len(bases) == 1, bases
@@ -884,6 +885,7 @@ class ConversionColumnMetaclass(type):
             column.start = variable.start
         if url is not None:
             column.url = url
+        column.formula_class.period_unit = variable.formula_class.period_unit
 
         return column
 
