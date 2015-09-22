@@ -1446,9 +1446,6 @@ def monthly_arithmetic_function(formula, simulation, period):
     array_by_period = holder._array_by_period
     if array_by_period is None:
         holder._array_by_period = array_by_period = {}
-    cached_array = array_by_period.get(period)
-    if cached_array is not None:
-        return cached_array
     if period.unit == u'month' and period.size == 1:
         array = exec_function_or_default(formula, simulation, period)
         array_by_period[period] = array
@@ -1479,9 +1476,6 @@ def monthly_state_function(formula, simulation, period):
     array_by_period = holder._array_by_period
     if array_by_period is None:
         holder._array_by_period = array_by_period = {}
-    cached_array = array_by_period.get(period)
-    if cached_array is not None:
-        return cached_array
     if period.unit == u'month' and period.size == 1:
         array = exec_function_or_default(formula, simulation, period)
         array_by_period[period] = array
@@ -1513,9 +1507,6 @@ def yearly_arithmetic_function(formula, simulation, period, is_external_output =
     array_by_period = holder._array_by_period
     if array_by_period is None:
         holder._array_by_period = array_by_period = {}
-    cached_array = array_by_period.get(period)
-    if cached_array is not None:
-        return cached_array
     if period.unit == u'year' and period.size == 1:
         array = exec_function_or_default(formula, simulation, period)
         array_by_period[period] = array
