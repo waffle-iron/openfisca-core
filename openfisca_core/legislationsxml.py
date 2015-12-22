@@ -506,46 +506,6 @@ def validate_brackets_xml_json_types(brackets, state = None):
     return brackets, None
 
 
-def validate_legislation_xml_json(legislation, state = None):
-    if legislation is None:
-        return None, None
-    if state is None:
-        state = conv.default_state
-
-    legislation, error = conv.pipe(
-        conv.test_isinstance(dict),
-        conv.struct(
-            dict(
-                deb = conv.pipe(
-                    conv.test_isinstance(basestring),
-                    conv.iso8601_input_to_date,
-                    conv.date_to_iso8601_str,
-                    conv.not_none,
-                    ),
-                fin = conv.pipe(
-                    conv.test_isinstance(basestring),
-                    conv.iso8601_input_to_date,
-                    conv.date_to_iso8601_str,
-                    conv.not_none,
-                    ),
-                ),
-            constructor = collections.OrderedDict,
-            default = conv.noop,
-            drop_none_values = 'missing',
-            keep_value_order = True,
-            ),
-        )(legislation, state = state)
-    if error is not None:
-        return legislation, error
-
-    deb = legislation.pop('deb')
-    fin = legislation.pop('fin')
-    legislation, error = validate_node_xml_json(legislation, state = state)
-    legislation['deb'] = deb
-    legislation['fin'] = fin
-    return legislation, error
-
-
 def validate_node_xml_json(node, state = None):
     if node is None:
         return None, None
@@ -629,6 +589,8 @@ def validate_node_xml_json(node, state = None):
                     children_code.add(child_code)
     conv.remove_ancestor_from_state(state, node)
     return validated_node, errors or None
+
+validate_legislation_xml_json = validate_node_xml_json
 
 
 def validate_parameter_xml_json(parameter, state = None):
@@ -848,14 +810,15 @@ def validate_values_xml_json_dates(values_xml_json, state = None):
     sorted_values_xml_json = sorted(values_xml_json, key = lambda value_xml_json: value_xml_json['deb'],
         reverse = True)
     next_value_xml_json = sorted_values_xml_json[0]
-    for index, value_xml_json in enumerate(itertools.islice(sorted_values_xml_json, 1, None)):
+    for index, value_xml_json in enumerate(itertools.islice(sorted_values_xml_json, 1, None), 1):
         to_date_str = value_xml_json.get('fin')
         if to_date_str is None:
             errors.setdefault(index, {})['fin'] = state._(u"Missing value")
-        next_date_str = (datetime.date(*(int(fragment) for fragment in to_date_str.split('-'))) +
-            datetime.timedelta(days = 1)).isoformat()
-        if next_date_str > next_value_xml_json['deb']:
-            errors.setdefault(index, {})['deb'] = state._(u"Dates of values overlap")
+        else:
+            next_date_str = (datetime.date(*(int(fragment) for fragment in to_date_str.split('-'))) +
+                datetime.timedelta(days = 1)).isoformat()
+            if next_date_str > next_value_xml_json['deb']:
+                errors.setdefault(index, {})['deb'] = state._(u"Dates of values overlap")
         next_value_xml_json = value_xml_json
 
     return sorted_values_xml_json, errors or None
