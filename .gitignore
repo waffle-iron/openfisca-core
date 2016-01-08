@@ -2,6 +2,7 @@
 .spyderproject
 .pydevproject
 .settings/
+.tags*
 build/
 dist/
 *.egg-info
