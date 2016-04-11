@@ -48,25 +48,48 @@ class AbstractReform(taxbenefitsystems.AbstractTaxBenefitSystem):
             key = u'.'.join([reference_full_key, key])
         return key
 
-    def modify_legislation_json(self, modifier_function):
-        """
-        Copy the reference TaxBenefitSystem legislation_json attribute and return it.
-        Used by reforms which need to modify the legislation_json, usually in the build_reform() function.
-        Validates the new legislation.
-        """
-        reference_legislation_json = self.reference.legislation_json
-        reference_legislation_json_copy = copy.deepcopy(reference_legislation_json)
-        reform_legislation_json = modifier_function(reference_legislation_json_copy)
-        assert reform_legislation_json is not None, \
-            'modifier_function {} in module {} must return the modified legislation_json'.format(
-                modifier_function.__name__,
-                modifier_function.__module__,
-                )
-        reform_legislation_json, error = legislations.validate_legislation_json(reform_legislation_json)
-        assert error is None, \
-            'The modified legislation_json of the reform "{}" is invalid, error: {}'.format(
-                self.key, error).encode('utf-8')
-        self.legislation_json = reform_legislation_json
+    # def modify_legislation_json(self, modifier_function):
+    #     """
+    #     Copy the reference TaxBenefitSystem legislation_json attribute and return it.
+    #     Used by reforms which need to modify the legislation_json, usually in the build_reform() function.
+    #     Validates the new legislation.
+    #     """
+    #     reference_legislation_json = self.reference.legislation_json
+    #     reference_legislation_json_copy = copy.deepcopy(reference_legislation_json)
+    #     reform_legislation_json = modifier_function(reference_legislation_json_copy)
+    #     assert reform_legislation_json is not None, \
+    #         'modifier_function {} in module {} must return the modified legislation_json'.format(
+    #             modifier_function.__name__,
+    #             modifier_function.__module__,
+    #             )
+    #     reform_legislation_json, error = legislations.validate_legislation_json(reform_legislation_json)
+    #     assert error is None, \
+    #         'The modified legislation_json of the reform "{}" is invalid, error: {}'.format(
+    #             self.key, error).encode('utf-8')
+    #     self.legislation_json = reform_legislation_json
+
+    @property
+    def update_legislation(self):
+        return LegislationUpdater(self.legislation_json)
+
+
+class LegislationUpdater(object):
+    def __init__(self, legislation_json):
+        self.__dict__['legislation_json'] = legislation_json
+
+    def __getattr__(self, key):
+        return LegislationUpdater(self.legislation_json['children'][key])
+
+    def __setattr__(self, key, value):
+        parameter_json = self.legislation_json['children'][key]
+        if parameter_json['@type'] == 'Parameter':
+            parameter_json['values'] = [
+                # FIXME Look how to create a "forever" slice.
+                collections.OrderedDict([('start', '1900-01-01'), ('value', value)]),
+                ]
+        # elif parameter_json['@type'] == 'Scale':
+        else:
+            raise NotImplementedError(parameter_json)
 
 
 def clone_entity_class(entity_class):
@@ -99,12 +122,14 @@ def make_reform(key, name, reference, decomposition_dir_name = None, decompositi
         key_plural: clone_entity_class(entity_class)
         for key_plural, entity_class in reference.entity_class_by_key_plural.iteritems()
         }
+    legislation_json_copy = copy.deepcopy(reference.legislation_json)
 
     class Reform(AbstractReform):
         _constructed = False
         DECOMP_DIR = decomposition_dir_name
         DEFAULT_DECOMP_FILE = decomposition_file_name
         entity_class_by_key_plural = reform_entity_class_by_key_plural
+        legislation_json = legislation_json_copy
 
         def __init__(self):
             super(Reform, self).__init__()
