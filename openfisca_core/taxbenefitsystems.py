@@ -152,6 +152,6 @@ class MultipleXmlBasedTaxBenefitSystem(AbstractTaxBenefitSystem):
 
         return dict(
             (os.path.basename(path).split('.')[0], yaml.load(file(path, 'r')))
-            for path in self.parameters_yaml_info_list
+            for path in self.yaml_parameters_info_list
         )
 
