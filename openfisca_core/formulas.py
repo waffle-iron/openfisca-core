@@ -13,6 +13,13 @@ import textwrap
 import numpy as np
 
 from . import columns, holders, legislations, periods
+from .base_functions import (
+    permanent_default_value,
+    requested_period_default_value_neutralized,
+    requested_period_default_value,
+    requested_period_last_or_next_value,
+    requested_period_last_value,
+    )
 from .tools import empty_clone, stringify_array
 
 
@@ -71,7 +78,7 @@ class AbstractFormula(object):
         return self
 
     def set_input(self, period, array):
-        self.holder.set_array(period, array)
+        self.holder.put_in_cache(array, period)
 
     def zeros(self, **kwargs):
         '''
@@ -113,7 +120,8 @@ class AbstractEntityToEntity(AbstractFormula):
                 ))
 
         variable_holder = self.variable_holder
-        variable_dated_holder = variable_holder.compute(period = period, accept_other_period = True)
+        parameters["accept_other_period"] = True
+        variable_dated_holder = variable_holder.compute(period = period, **parameters)
         output_period = variable_dated_holder.period
 
         array = self.transform(variable_dated_holder, roles = self.roles)
@@ -143,9 +151,7 @@ class AbstractEntityToEntity(AbstractFormula):
                     simulation.stringify_input_variables_infos(input_variables_infos), stringify_array(array),
                     str(output_period)))
 
-        dated_holder = holder.at_period(output_period)
-        dated_holder.array = array
-        return dated_holder
+        return holder.put_in_cache(array, output_period)
 
     def graph_parameters(self, edges, get_input_variables_and_parameters, nodes, visited):
         """Recursively build a graph of formulas."""
@@ -270,10 +276,7 @@ class DatedFormula(AbstractGroupedFormula):
         column = holder.column
         array = np.empty(holder.entity.count, dtype = column.dtype)
         array.fill(column.default)
-        if dated_holder is None:
-            dated_holder = holder.at_period(period)
-        dated_holder.array = array
-        return dated_holder
+        return holder.put_in_cache(array, period, parameters.get('extra_params'))
 
     def graph_parameters(self, edges, get_input_variables_and_parameters, nodes, visited):
         """Recursively build a graph of formulas."""
@@ -529,6 +532,7 @@ class SimpleFormula(AbstractFormula):
         trace = simulation.trace
 
         max_nb_cycles = parameters.get('max_nb_cycles')
+        extra_params = parameters.get('extra_params')
         if max_nb_cycles is not None:
             simulation.max_nb_cycles = max_nb_cycles
 
@@ -545,16 +549,17 @@ class SimpleFormula(AbstractFormula):
                     input_variables_infos = [],
                     variable_name = column.name,
                     ))
-            formula_result = self.base_function(simulation, period)
+            if extra_params:
+                formula_result = self.base_function(simulation, period, *extra_params)
+            else:
+                formula_result = self.base_function(simulation, period)
         except CycleError:
             self.clean_cycle_detection_data()
             if max_nb_cycles is None:
                 # Re-raise until reaching the first variable called with max_nb_cycles != None in the stack.
                 raise
-            dated_holder = holder.at_period(period)
-            dated_holder.array = self.default_values()
             simulation.max_nb_cycles = None
-            return dated_holder
+            return holder.put_in_cache(self.default_values(), period, extra_params)
         except legislations.ParameterNotFound as exc:
             if exc.variable_name is None:
                 raise legislations.ParameterNotFound(
@@ -622,8 +627,7 @@ class SimpleFormula(AbstractFormula):
                     simulation.stringify_input_variables_infos(input_variables_infos), str(output_period),
                     stringify_array(array)))
 
-        dated_holder = holder.at_period(output_period)
-        dated_holder.array = array
+        dated_holder = holder.put_in_cache(array, output_period, extra_params)
 
         self.clean_cycle_detection_data()
         if max_nb_cycles is not None:
@@ -728,8 +732,7 @@ class SimpleFormula(AbstractFormula):
 
     def sum_by_entity(self, array_or_dated_holder, entity = None, roles = None):
         holder = self.holder
-        target_entity = holder.entity
-        simulation = target_entity.simulation
+        simulation = holder.entity.simulation
         persons = simulation.persons
         if entity is None:
             entity = holder.entity
@@ -749,7 +752,7 @@ class SimpleFormula(AbstractFormula):
         entity_index_array = persons.simulation.holder_by_name[entity.index_for_person_variable_name].array
         if roles is None:
             roles = range(entity.roles_count)
-        target_array = self.zeros(dtype = array.dtype if array.dtype != np.bool else np.int16)
+        target_array = np.zeros(entity.count, dtype = array.dtype if array.dtype != np.bool else np.int16)
         for role in roles:
             # TODO: Mettre les filtres en cache dans la simulation
             boolean_filter = persons.simulation.holder_by_name[entity.role_for_person_variable_name].array == role
@@ -1061,22 +1064,6 @@ def dated_function(start = None, stop = None):
     return dated_function_decorator
 
 
-def last_duration_last_value(formula, simulation, period):
-    # This formula is used for variables that are constants between events but are period size dependent.
-    # It returns the latest known value for the requested start of period but with the last period size.
-    holder = formula.holder
-    if holder._array_by_period is not None:
-        for last_period, last_array in sorted(holder._array_by_period.iteritems(), reverse = True):
-            if last_period.start <= period.start and (formula.function is None or last_period.stop >= period.stop):
-                return periods.Period((last_period[0], period.start, last_period[2])), last_array
-    if formula.function is not None:
-        return formula.function(simulation, period)
-    column = holder.column
-    array = np.empty(holder.entity.count, dtype = column.dtype)
-    array.fill(column.default)
-    return period, array
-
-
 def add_column_to_tax_benefit_system(column, update = False):
     assert isinstance(column, columns.Column)
     assert column.formula_class is not None
@@ -1129,7 +1116,7 @@ def new_filled_column(base_function = UnboundLocalError, calculate_output = Unbo
     if cerfa_field is UnboundLocalError:
         cerfa_field = None if reference_column is None else reference_column.cerfa_field
     elif cerfa_field is not None:
-        assert isinstance(cerfa_field, basestring), cerfa_field
+        assert isinstance(cerfa_field, (basestring, dict)), cerfa_field
         cerfa_field = unicode(cerfa_field)
 
     assert column is not None, """Missing attribute "column" in definition of filled column {}""".format(name)
@@ -1234,7 +1221,8 @@ def new_filled_column(base_function = UnboundLocalError, calculate_output = Unbo
         assert base_function is UnboundLocalError
         base_function = permanent_default_value
     elif column.is_period_size_independent:
-        assert base_function in (missing_value, requested_period_last_value, UnboundLocalError)
+        assert base_function in (missing_value, requested_period_last_value, requested_period_last_or_next_value,
+            UnboundLocalError)
         if base_function is UnboundLocalError:
             base_function = requested_period_last_value
     elif base_function is UnboundLocalError:
@@ -1354,92 +1342,9 @@ def new_filled_column(base_function = UnboundLocalError, calculate_output = Unbo
     return column
 
 
-def permanent_default_value(formula, simulation, period):
-    if formula.function is not None:
-        return formula.function(simulation, period)
-    holder = formula.holder
-    column = holder.column
-    array = np.empty(holder.entity.count, dtype = column.dtype)
-    array.fill(column.default)
-    return period, array
-
-
-def requested_period_added_value(formula, simulation, period):
-    # This formula is used for variables that can be added to match requested period.
-    holder = formula.holder
-    column = holder.column
-    period_size = period.size
-    period_unit = period.unit
-    if holder._array_by_period is not None and (period_size > 1 or period_unit == u'year'):
-        after_instant = period.start.offset(period_size, period_unit)
-        if period_size > 1:
-            array = formula.zeros(dtype = column.dtype)
-            sub_period = period.start.period(period_unit)
-            while sub_period.start < after_instant:
-                sub_array = holder._array_by_period.get(sub_period)
-                if sub_array is None:
-                    array = None
-                    break
-                array += sub_array
-                sub_period = sub_period.offset(1)
-            if array is not None:
-                return period, array
-        if period_unit == u'year':
-            array = formula.zeros(dtype = column.dtype)
-            month = period.start.period(u'month')
-            while month.start < after_instant:
-                month_array = holder._array_by_period.get(month)
-                if month_array is None:
-                    array = None
-                    break
-                array += month_array
-                month = month.offset(1)
-            if array is not None:
-                return period, array
-    if formula.function is not None:
-        return formula.function(simulation, period)
-    array = np.empty(holder.entity.count, dtype = column.dtype)
-    array.fill(column.default)
-    return period, array
-
-
-def requested_period_default_value(formula, simulation, period):
-    if formula.function is not None:
-        return formula.function(simulation, period)
-    holder = formula.holder
-    column = holder.column
-    array = np.empty(holder.entity.count, dtype = column.dtype)
-    array.fill(column.default)
-    return period, array
-
-
-def requested_period_default_value_neutralized(formula, simulation, period):
-    holder = formula.holder
-    column = holder.column
-    array = np.empty(holder.entity.count, dtype = column.dtype)
-    array.fill(column.default)
-    return period, array
-
-
-def requested_period_last_value(formula, simulation, period):
-    # This formula is used for variables that are constants between events and period size independent.
-    # It returns the latest known value for the requested period.
-    holder = formula.holder
-    if holder._array_by_period is not None:
-        for last_period, last_array in sorted(holder._array_by_period.iteritems(), reverse = True):
-            if last_period.start <= period.start and (formula.function is None or last_period.stop >= period.stop):
-                return period, last_array
-    if formula.function is not None:
-        return formula.function(simulation, period)
-    column = holder.column
-    array = np.empty(holder.entity.count, dtype = column.dtype)
-    array.fill(column.default)
-    return period, array
-
-
 def set_input_dispatch_by_period(formula, period, array):
     holder = formula.holder
-    holder.set_array(period, array)
+    holder.put_in_cache(array, period)
     period_size = period.size
     period_unit = period.unit
     if period_unit == u'year' or period_size > 1:
@@ -1449,7 +1354,7 @@ def set_input_dispatch_by_period(formula, period, array):
             while sub_period.start < after_instant:
                 existing_array = holder.get_array(sub_period)
                 if existing_array is None:
-                    holder.set_array(sub_period, array)
+                    holder.put_in_cache(array, sub_period)
                 else:
                     # The array of the current sub-period is reused for the next ones.
                     array = existing_array
@@ -1459,7 +1364,7 @@ def set_input_dispatch_by_period(formula, period, array):
             while month.start < after_instant:
                 existing_array = holder.get_array(month)
                 if existing_array is None:
-                    holder.set_array(month, array)
+                    holder.put_in_cache(array, month)
                 else:
                     # The array of the current sub-period is reused for the next ones.
                     array = existing_array
@@ -1468,7 +1373,7 @@ def set_input_dispatch_by_period(formula, period, array):
 
 def set_input_divide_by_period(formula, period, array):
     holder = formula.holder
-    holder.set_array(period, array)
+    holder.put_in_cache(array, period)
     period_size = period.size
     period_unit = period.unit
     if period_unit == u'year' or period_size > 1:
@@ -1488,7 +1393,7 @@ def set_input_divide_by_period(formula, period, array):
                 sub_period = period.start.period(period_unit)
                 while sub_period.start < after_instant:
                     if holder.get_array(sub_period) is None:
-                        holder.set_array(sub_period, divided_array)
+                        holder.put_in_cache(divided_array, sub_period)
                     sub_period = sub_period.offset(1)
         if period_unit == u'year':
             remaining_array = array.copy()
@@ -1505,7 +1410,7 @@ def set_input_divide_by_period(formula, period, array):
                 month = period.start.period(u'month')
                 while month.start < after_instant:
                     if holder.get_array(month) is None:
-                        holder.set_array(month, divided_array)
+                        holder.put_in_cache(divided_array, month)
                     month = month.offset(1)
 
 

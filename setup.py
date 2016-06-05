@@ -7,7 +7,7 @@ from setuptools import setup, find_packages
 
 setup(
     name = 'OpenFisca-Core',
-    version = '0.5.3.dev0',
+    version = '1.1.0',
 
     author = 'OpenFisca Team',
     author_email = 'contact@openfisca.fr',
@@ -27,6 +27,11 @@ setup(
         ('share/locale/fr/LC_MESSAGES', ['openfisca_core/i18n/fr/LC_MESSAGES/openfisca-core.mo']),
         ('share/openfisca/openfisca-core', ['CHANGELOG.md', 'LICENSE', 'README.md']),
         ],
+    extras_require = {
+        'test': [
+            'nose',
+            ],
+        },
     include_package_data = True,  # Will read MANIFEST.in
     install_requires = [
         'Babel >= 0.9.4',

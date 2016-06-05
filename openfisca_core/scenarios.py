@@ -11,7 +11,8 @@ import numpy as np
 from . import conv, periods, simulations
 
 
-N_ = lambda message: message
+def N_(message):
+    return message
 
 
 class AbstractScenario(object):
@@ -67,7 +68,7 @@ class AbstractScenario(object):
                         if use_set_input_hooks:
                             holder.set_input(period, array)
                         else:
-                            holder.set_array(period, array)
+                            holder.put_in_cache(array, period)
 
             if persons.count == 0:
                 persons.count = 1
@@ -176,7 +177,7 @@ class AbstractScenario(object):
                             if use_set_input_hooks:
                                 holder.set_input(variable_period, array)
                             else:
-                                holder.set_array(variable_period, array)
+                                holder.put_in_cache(array, variable_period)
 
             if self.axes is not None:
                 if len(self.axes) == 1:
@@ -197,7 +198,7 @@ class AbstractScenario(object):
                         if use_set_input_hooks:
                             holder.set_input(axis_period, array)
                         else:
-                            holder.set_array(axis_period, array)
+                            holder.put_in_cache(array, axis_period)
                 else:
                     axes_linspaces = [
                         np.linspace(0, first_axis['count'] - 1, first_axis['count'])
@@ -225,7 +226,7 @@ class AbstractScenario(object):
                             if use_set_input_hooks:
                                 holder.set_input(axis_period, array)
                             else:
-                                holder.set_array(axis_period, array)
+                                holder.put_in_cache(array, axis_period)
 
     def init_from_attributes(self, repair = False, **attributes):
         conv.check(self.make_json_or_python_to_attributes(repair = repair))(attributes)
@@ -338,7 +339,7 @@ class AbstractScenario(object):
         return json_to_instance
 
     def new_simulation(self, debug = False, debug_all = False, reference = False, trace = False,
-            use_set_input_hooks = True):
+            use_set_input_hooks = True, opt_out_cache = False):
         assert isinstance(reference, (bool, int)), \
             'Parameter reference must be a boolean. When True, the reference tax-benefit system is used.'
         tax_benefit_system = self.tax_benefit_system
@@ -354,6 +355,7 @@ class AbstractScenario(object):
             period = self.period,
             tax_benefit_system = tax_benefit_system,
             trace = trace,
+            opt_out_cache = opt_out_cache,
             )
         self.fill_simulation(simulation, use_set_input_hooks = use_set_input_hooks)
         return simulation
