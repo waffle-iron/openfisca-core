@@ -65,11 +65,11 @@ def merge_xml_elements_and_paths_into_first(xml_elements_and_paths, state = None
         if path is None:
             xml_root_element.append(xml_element)
         else:
-	    xpath = u'/'.join(itertools.chain(
-                [u'.'],
-	        (u'NODE[@code="{}"]'.format(fragment) for fragment in path)
-	        ))
-	    xml_root_element.find(xpath).append(xml_element)
+            xpath = u'/'.join(itertools.chain(
+                    [u'.'],
+                (u'NODE[@code="{}"]'.format(fragment) for fragment in path)
+                ))
+            xml_root_element.find(xpath).append(xml_element)
 
     return xml_root_element, None
 
