@@ -101,7 +101,7 @@ class TaxBenefitSystem(object):
 
         if existing_column and not update:
             # Variables that are dependencies of others (trough a conversion column)can be loaded automatically
-            if name in self.automatically_loaded_variable:
+            if hasattr(self, 'automatically_loaded_variable') and name in self.automatically_loaded_variable:
                 self.automatically_loaded_variable.remove(name)
                 return self.get_column(name)
             raise Exception("Variable {} is already defined. Use `update_variable` to replace it.".format(name))
