@@ -13,6 +13,14 @@ from variables import AbstractVariable
 from formulas import neutralize_column
 
 
+class VariableNotFound(Exception):
+    pass
+
+
+class VariableNameConflict(Exception):
+    pass
+
+
 class TaxBenefitSystem(object):
     _base_tax_benefit_system = None
     compact_legislation_by_instant_cache = None
@@ -26,6 +34,7 @@ class TaxBenefitSystem(object):
     reference = None  # Reference tax-benefit system. Used only by reforms. Note: Reforms can be chained.
     Scenario = None
     cache_blacklist = None
+    DEFAULT_DECOMP_FILE = None
 
     def __init__(self, entities, legislation_json = None):
         # TODO: Currently: Don't use a weakref, because they are cleared by Paste (at least) at each call.
@@ -104,7 +113,8 @@ class TaxBenefitSystem(object):
             if name in self.automatically_loaded_variable:
                 self.automatically_loaded_variable.remove(name)
                 return self.get_column(name)
-            raise Exception("Variable {} is already defined. Use `update_variable` to replace it.".format(name))
+            raise VariableNameConflict(
+                "Variable {} is already defined. Use `update_variable` to replace it.".format(name))
 
         if existing_column and update:
             attributes['reference'] = existing_column
@@ -157,8 +167,11 @@ class TaxBenefitSystem(object):
         if path.isfile(param_file):
             self.add_legislation_params(param_file)
 
-    def get_column(self, column_name):
-        return self.column_by_name.get(column_name)
+    def get_column(self, column_name, check_existence = False):
+        column = self.column_by_name.get(column_name)
+        if not column and check_existence:
+            raise VariableNotFound(u'Variable "{}" not found in current tax benefit system'.format(column_name))
+        return column
 
     def update_column(self, column_name, new_column):
         self.column_by_name[column_name] = new_column
