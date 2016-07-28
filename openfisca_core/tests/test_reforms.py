@@ -6,7 +6,7 @@ from nose.tools import raises
 from nose.tools import assert_equal
 
 from .. import columns, periods
-from ..reforms import Reform, compose_reforms, updated_legislation_items
+from ..reforms import Reform, compose_reforms
 from ..formulas import dated_function
 from ..variables import Variable, DatedVariable
 from ..periods import Instant
@@ -79,65 +79,6 @@ def test_input_variable_neutralization():
     assert_near(salaire_brut_mensuel_reform, [0, 0], absolute_error_margin = 0)
     revenu_disponible_reform = reform_simulation.calculate('revenu_disponible')
     assert_near(revenu_disponible_reform, [3600, 3600], absolute_error_margin = 0)
-
-
-def test_updated_legislation_items():
-    def check_updated_legislation_items(description, items, start_instant, stop_instant, value, expected_items):
-        new_items = updated_legislation_items(items, start_instant, stop_instant, value)
-        assert_equal(map(dict, new_items), expected_items)
-
-    yield(
-        check_updated_legislation_items,
-        u'Replace an item by a new item',
-        [
-            {
-                "start": "2013-01-01",
-                "stop": "2013-12-31",
-                "value": 0.0,
-                },
-            ],
-        periods.period('year', 2013).start,
-        periods.period('year', 2013).stop,
-        1,
-        [
-            {
-                "start": "2013-01-01",
-                "stop": "2013-12-31",
-                "value": 1.0,
-                },
-            ],
-        )
-    yield(
-        check_updated_legislation_items,
-        u'Insert a new item in the middle of an existing item',
-        [
-            {
-                "start": "2010-01-01",
-                "stop": "2013-12-31",
-                "value": 0.0,
-                },
-            ],
-        periods.period('year', 2011).start,
-        periods.period('year', 2011).stop,
-        1,
-        [
-            {
-                "start": "2010-01-01",
-                "stop": "2010-12-31",
-                "value": 0.0,
-                },
-            {
-                "start": "2011-01-01",
-                "stop": "2011-12-31",
-                "value": 1.0,
-                },
-            {
-                "start": "2012-01-01",
-                "stop": "2013-12-31",
-                "value": 0.0,
-                },
-            ],
-        )
 
 
 def test_add_variable():
