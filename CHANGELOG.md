@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.0.3
+
+* Update helpers for modifying the legislation in reforms.
+
 ## 3.0.2
 
 * Move `calmar.py` to [OpenFisca-Survey-Manager](https://github.com/openfisca/openfisca-survey-manager).
