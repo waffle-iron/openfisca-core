@@ -196,7 +196,10 @@ class TaxBenefitSystem(object):
         self.column_by_name[column_name] = new_column
 
     def neutralize_column(self, column_name):
-        self.update_column(column_name, neutralize_column(self.reference.get_column(column_name)))
+        self.update_column(
+            column_name,
+            neutralize_column(self.reference.get_column(column_name, check_existence=True)),
+            )
 
     def add_legislation_params(self, path_to_xml_file, path_in_legislation_tree = None):
         if path_in_legislation_tree is not None:
@@ -219,7 +222,29 @@ class TaxBenefitSystem(object):
             legislation_json = self.preprocess_legislation(legislation_json)
         self._legislation_json = legislation_json
 
-    def get_legislation(self, with_source_file_infos = False):
+    def get_legislation(self, path=None, instant=None, with_source_file_infos = False):
+        '''
+        Return the legislation parameters of the tax and benefit system.
+
+        If a `path` is given, return the corresponding node of the legislation.
+        `path` can be a string like 'x.y.z' or a list of strings like ['x', 'y', 'z'].
+
+        If an `instant` is given, return a version of the legislation node containing only the values
+        at the given `instant`.
+        `instant` can be a string like "YYYY-MM-DD" or a value of type `Instant`.
+
+        Examples:
+            legislation = tax_benefit_system.get_legislation()
+            ir_bareme = tax_benefit_system.get_legislation(path='ir.bareme')
+            legislation_at_2015 = tax_benefit_system.get_legislation(instant='2015-01-01')
+            ir_bareme_at_2015 = tax_benefit_system.get_legislation(path='ir.bareme', instant='2015-01-01')
+
+        '''
         if self._legislation_json is None:
             self.compute_legislation(with_source_file_infos = with_source_file_infos)
-        return self._legislation_json
+        legislation_json = self._legislation_json
+        if path is not None:
+            legislation_json = legislations.get_node(legislation_json, path)
+        if instant is not None:
+            legislation_json = legislations.at_instant(legislation_json, instant)
+        return legislation_json

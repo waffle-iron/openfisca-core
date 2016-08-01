@@ -3,6 +3,7 @@
 import copy
 
 from . import legislations, periods
+from .legislations import validators as legislation_validators
 from .taxbenefitsystems import TaxBenefitSystem
 
 
@@ -57,7 +58,7 @@ class Reform(TaxBenefitSystem):
                 modifier_function.__name__,
                 modifier_function.__module__,
                 )
-        reform_legislation_json, error = legislations.validate_legislation_json(reform_legislation_json)
+        reform_legislation_json, error = legislation_validators.validate_legislation_json(reform_legislation_json)
         assert error is None, \
             'The modified legislation_json of the reform "{}" is invalid, error: {}'.format(
                 self.key, error).encode('utf-8')
@@ -65,35 +66,22 @@ class Reform(TaxBenefitSystem):
         self.compact_legislation_by_instant_cache = {}
 
 
-def get_node(legislation_json, path):
-    '''
-    Return a node in the `legislation_json` tree at the given `path`.
-    '''
-    node = legislation_json
-    for key in path:
-        assert 'children' in node, 'Expected "children" key, got: {}'.format(legislation_json.keys())
-        assert key in node['children'], 'Expected "{}" key, got: {}'.format(key, legislation_json['children'].keys())
-        node = node['children'][key]
-    return node
+# Legislation JSON modifiers
 
 
-def is_scale(node):
+def replace_scale_rate(scale_node, period, new_rate, old_rate=None, bracket_index=None):
     '''
-    Returns True if the given `node` is a "Scale" (Barème in French).
-    '''
-    return node.get('@type') == 'Scale' and isinstance(node.get('brackets'), list)
+    In a given `scale_node`, for a given `period`:
+        - replace an `old_rate` by a `new_rate` or
+        - set a `new_rate` given a `bracket_index`
 
+    You must provide either `old_rate` or `bracket_index`.
 
-def replace_rate(scale_node, period, new_rate, old_rate=None, bracket_index=None):
-    '''
-    In a given `scale_node`, for a given `period`, replace either:
-        - an `old_rate` by a `new_rate`
-        - a `new_rate` given a `bracket_index`
-    Modifies the `scale_node`.
+    Note: modifies the `scale_node`.
     '''
     assert bool(old_rate is not None) ^ bool(bracket_index is not None), \
         'You must provide either `old_rate` or `bracket_index`'
-    assert is_scale(scale_node), 'Scale node expected'
+    assert legislations.is_scale(scale_node), 'Scale node expected'
     period = periods.period(period)
     if bracket_index is not None:
         bracket = scale_node['brackets'][bracket_index]
@@ -106,12 +94,3 @@ def replace_rate(scale_node, period, new_rate, old_rate=None, bracket_index=None
                 if rate['value'] == old_rate and rate['start'] >= str(period.start) and (
                         'stop' not in rate or rate['stop'] <= str(period.stop)):
                     rate['value'] = new_rate
-
-
-def at_instant(node, instant):
-    '''
-    Return a version of the given `node` containing only the values at the given `instant`.
-    '''
-    instant = str(periods.instant(instant))
-    dated_node = legislations.generate_dated_node_json(node, instant)
-    return dated_node

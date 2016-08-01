@@ -3,16 +3,15 @@
 import datetime
 
 from nose.tools import raises
-from nose.tools import assert_equal
 
 from .. import columns, periods
 from ..reforms import Reform, compose_reforms
 from ..formulas import dated_function
 from ..variables import Variable, DatedVariable
-from ..periods import Instant
 from ..tools import assert_near
 from .dummy_country import Familles
 from .test_countries import TestTaxBenefitSystem
+
 
 tax_benefit_system = TestTaxBenefitSystem()
 
@@ -247,6 +246,6 @@ def test_modify_legislation():
     legislation_new_node = reform.get_legislation()['children']['new_node']
     assert legislation_new_node is not None
 
-    instant = Instant((2013, 1, 1))
+    instant = periods.instant((2013, 1, 1))
     compact_legislation = reform.get_compact_legislation(instant)
     assert compact_legislation.new_node.new_param is True
