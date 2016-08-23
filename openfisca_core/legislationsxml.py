@@ -191,7 +191,7 @@ def transform_parameter_xml_json_to_json(parameter_xml_json):
         return bool(int(xml_json_value))
 
     for key, value in parameter_xml_json.iteritems():
-        if key in ('code', 'taille'):
+        if key in ('code', 'taille', 'origin', 'both_origins'):
             pass
         elif key == 'format':
             parameter_json[key] = dict(
@@ -316,7 +316,8 @@ def validate_bracket_xml_json(bracket, state = None):
                         drop_none_items = True,
                         ),
                     conv.empty_to_none,
-                    conv.test(lambda l: len(l) == 1, error = N_(u"List must contain one and only one item")),
+                    conv.test(
+                        lambda l: len(l) == 1, error = N_(u"List must contain one and only one item")),
                     conv.not_none,
                     ),
                 start_line_number = conv.test_isinstance(int),
@@ -535,6 +536,10 @@ def validate_node_xml_json(node, state = None):
                         ),
                     conv.empty_to_none,
                     ),
+                both_origins = conv.pipe(
+                    conv.test_isinstance(basestring),
+                    conv.empty_to_none,
+                    ),
                 CODE = conv.pipe(
                     conv.test_isinstance(list),
                     conv.uniform_sequence(
@@ -559,6 +564,10 @@ def validate_node_xml_json(node, state = None):
                         validate_node_xml_json,
                         drop_none_items = True,
                         ),
+                    conv.empty_to_none,
+                    ),
+                origin = conv.pipe(
+                    conv.test_isinstance(basestring),
                     conv.empty_to_none,
                     ),
                 start_line_number = conv.test_isinstance(int),
@@ -615,6 +624,10 @@ def validate_parameter_xml_json(parameter, state = None):
         conv.test_isinstance(dict),
         conv.struct(
             dict(
+                both_origins = conv.pipe(
+                    conv.test_isinstance(basestring),
+                    conv.empty_to_none,
+                    ),
                 code = conv.pipe(
                     conv.test_isinstance(basestring),
                     conv.cleanup_line,
@@ -630,6 +643,11 @@ def validate_parameter_xml_json(parameter, state = None):
                     conv.input_to_slug,
                     conv.test_in(xml_json_formats),
                     ),
+                origin = conv.pipe(
+                    conv.test_isinstance(basestring),
+                    conv.empty_to_none,
+                    ),
+
                 start_line_number = conv.test_isinstance(int),
                 tail = conv.pipe(
                     conv.test_isinstance(basestring),
@@ -680,6 +698,10 @@ def validate_scale_xml_json(scale, state = None):
         conv.test_isinstance(dict),
         conv.struct(
             dict(
+                both_origins = conv.pipe(
+                    conv.test_isinstance(basestring),
+                    conv.empty_to_none,
+                    ),
                 code = conv.pipe(
                     conv.test_isinstance(basestring),
                     conv.cleanup_line,
@@ -698,6 +720,10 @@ def validate_scale_xml_json(scale, state = None):
                         'main-d-oeuvre',
                         'noncontrib',
                         )),
+                    ),
+                origin = conv.pipe(
+                    conv.test_isinstance(basestring),
+                    conv.empty_to_none,
                     ),
                 start_line_number = conv.test_isinstance(int),
                 TRANCHE = conv.pipe(
