@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.0.0
+
+* Update introspection data. This allows to enhance data served by the web API which itself feeds the Legislation Explorer.
+
+## 2.2.2
+
+* Update travis procedures
+
 ## 2.2.1
 
 * Remove conda from travis config
