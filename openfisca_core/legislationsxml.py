@@ -869,8 +869,16 @@ def validate_values_xml_json_dates(values_xml_json, state = None):
 
 validate_values_holder_xml_json = conv.struct(
     dict(
+        both_origins = conv.pipe(
+            conv.test_isinstance(basestring),
+            conv.empty_to_none,
+            ),
         end_line_number = conv.test_isinstance(int),
         start_line_number = conv.test_isinstance(int),
+        origin = conv.pipe(
+            conv.test_isinstance(basestring),
+            conv.empty_to_none,
+            ),
         VALUE = conv.pipe(
             conv.test_isinstance(list),
             conv.uniform_sequence(
