@@ -243,10 +243,6 @@ def transform_scale_xml_json_to_json(scale_xml_json):
     return scale_xml_json['code'], scale_json
 
 
-def transform_value_to_bool(value_xml_json):
-    return bool(int(value_xml_json))
-
-
 def transform_value_xml_json_to_json(value_xml_json, xml_json_value_to_json_transformer):
     comments = []
     value_json = collections.OrderedDict()
