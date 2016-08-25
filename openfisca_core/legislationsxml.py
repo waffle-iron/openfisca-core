@@ -534,7 +534,7 @@ def validate_node_xml_json(node, state = None):
                     ),
                 both_origins = conv.pipe(
                     conv.test_isinstance(basestring),
-                    conv.empty_to_none,
+                    conv.guess_bool,
                     ),
                 CODE = conv.pipe(
                     conv.test_isinstance(list),
@@ -622,7 +622,7 @@ def validate_parameter_xml_json(parameter, state = None):
             dict(
                 both_origins = conv.pipe(
                     conv.test_isinstance(basestring),
-                    conv.empty_to_none,
+                    conv.guess_bool,
                     ),
                 code = conv.pipe(
                     conv.test_isinstance(basestring),
@@ -696,7 +696,7 @@ def validate_scale_xml_json(scale, state = None):
             dict(
                 both_origins = conv.pipe(
                     conv.test_isinstance(basestring),
-                    conv.empty_to_none,
+                    conv.guess_bool,
                     ),
                 code = conv.pipe(
                     conv.test_isinstance(basestring),
@@ -867,7 +867,7 @@ validate_values_holder_xml_json = conv.struct(
     dict(
         both_origins = conv.pipe(
             conv.test_isinstance(basestring),
-            conv.empty_to_none,
+            conv.guess_bool,
             ),
         end_line_number = conv.test_isinstance(int),
         start_line_number = conv.test_isinstance(int),
