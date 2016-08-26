@@ -191,7 +191,7 @@ def transform_parameter_xml_json_to_json(parameter_xml_json):
         return bool(int(xml_json_value))
 
     for key, value in parameter_xml_json.iteritems():
-        if key in ('code', 'taille', 'origin', 'both_origins'):
+        if key in ('code', 'taille'):
             pass
         elif key == 'format':
             parameter_json[key] = dict(
