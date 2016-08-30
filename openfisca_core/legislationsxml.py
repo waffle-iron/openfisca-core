@@ -334,6 +334,11 @@ def validate_bracket_xml_json(bracket, state = None):
                     conv.test_isinstance(basestring),
                     conv.cleanup_text,
                     ),
+                # baremes-ipp related attributes
+                origin = conv.pipe(
+                    conv.test_isinstance(basestring),
+                    conv.empty_to_none,
+                    ),
                 ),
             constructor = collections.OrderedDict,
             drop_none_values = 'missing',
@@ -532,10 +537,6 @@ def validate_node_xml_json(node, state = None):
                         ),
                     conv.empty_to_none,
                     ),
-                both_origins = conv.pipe(
-                    conv.test_isinstance(basestring),
-                    conv.guess_bool,
-                    ),
                 CODE = conv.pipe(
                     conv.test_isinstance(list),
                     conv.uniform_sequence(
@@ -562,10 +563,6 @@ def validate_node_xml_json(node, state = None):
                         ),
                     conv.empty_to_none,
                     ),
-                origin = conv.pipe(
-                    conv.test_isinstance(basestring),
-                    conv.empty_to_none,
-                    ),
                 start_line_number = conv.test_isinstance(int),
                 tail = conv.pipe(
                     conv.test_isinstance(basestring),
@@ -576,6 +573,16 @@ def validate_node_xml_json(node, state = None):
                     conv.cleanup_text,
                     ),
                 xml_file_path = conv.test_isinstance(basestring),
+                # baremes-ipp related attributes
+                conflicts = conv.pipe(
+                    conv.test_isinstance(basestring),
+                    conv.empty_to_none,
+                    conv.function(lambda value: value.split(',')),
+                    ),
+                origin = conv.pipe(
+                    conv.test_isinstance(basestring),
+                    conv.empty_to_none,
+                    ),
                 ),
             constructor = collections.OrderedDict,
             drop_none_values = 'missing',
@@ -620,10 +627,6 @@ def validate_parameter_xml_json(parameter, state = None):
         conv.test_isinstance(dict),
         conv.struct(
             dict(
-                both_origins = conv.pipe(
-                    conv.test_isinstance(basestring),
-                    conv.guess_bool,
-                    ),
                 code = conv.pipe(
                     conv.test_isinstance(basestring),
                     conv.cleanup_line,
@@ -639,11 +642,6 @@ def validate_parameter_xml_json(parameter, state = None):
                     conv.input_to_slug,
                     conv.test_in(xml_json_formats),
                     ),
-                origin = conv.pipe(
-                    conv.test_isinstance(basestring),
-                    conv.empty_to_none,
-                    ),
-
                 start_line_number = conv.test_isinstance(int),
                 tail = conv.pipe(
                     conv.test_isinstance(basestring),
@@ -676,6 +674,16 @@ def validate_parameter_xml_json(parameter, state = None):
                     conv.not_none,
                     ),
                 xml_file_path = conv.test_isinstance(basestring),
+                # baremes-ipp related attributes
+                conflicts = conv.pipe(
+                    conv.test_isinstance(basestring),
+                    conv.empty_to_none,
+                    conv.function(lambda value: value.split(',')),
+                    ),
+                origin = conv.pipe(
+                    conv.test_isinstance(basestring),
+                    conv.empty_to_none,
+                    ),
                 ),
             constructor = collections.OrderedDict,
             drop_none_values = 'missing',
@@ -694,10 +702,6 @@ def validate_scale_xml_json(scale, state = None):
         conv.test_isinstance(dict),
         conv.struct(
             dict(
-                both_origins = conv.pipe(
-                    conv.test_isinstance(basestring),
-                    conv.guess_bool,
-                    ),
                 code = conv.pipe(
                     conv.test_isinstance(basestring),
                     conv.cleanup_line,
@@ -716,10 +720,6 @@ def validate_scale_xml_json(scale, state = None):
                         'main-d-oeuvre',
                         'noncontrib',
                         )),
-                    ),
-                origin = conv.pipe(
-                    conv.test_isinstance(basestring),
-                    conv.empty_to_none,
                     ),
                 start_line_number = conv.test_isinstance(int),
                 TRANCHE = conv.pipe(
@@ -749,6 +749,16 @@ def validate_scale_xml_json(scale, state = None):
                         )),
                     ),
                 xml_file_path = conv.test_isinstance(basestring),
+                # baremes-ipp related attributes
+                conflicts = conv.pipe(
+                    conv.test_isinstance(basestring),
+                    conv.empty_to_none,
+                    conv.function(lambda value: value.split(',')),
+                    ),
+                origin = conv.pipe(
+                    conv.test_isinstance(basestring),
+                    conv.empty_to_none,
+                    ),
                 ),
             constructor = collections.OrderedDict,
             drop_none_values = 'missing',
@@ -822,6 +832,11 @@ def validate_value_xml_json(value, state = None):
                     conv.not_none,
                     ),
                 xml_file_path = conv.test_isinstance(basestring),
+                # baremes-ipp related attributes
+                origin = conv.pipe(
+                    conv.test_isinstance(basestring),
+                    conv.empty_to_none,
+                    ),
                 ),
             constructor = collections.OrderedDict,
             drop_none_values = 'missing',
@@ -865,16 +880,8 @@ def validate_values_xml_json_dates(values_xml_json, state = None):
 
 validate_values_holder_xml_json = conv.struct(
     dict(
-        both_origins = conv.pipe(
-            conv.test_isinstance(basestring),
-            conv.guess_bool,
-            ),
         end_line_number = conv.test_isinstance(int),
         start_line_number = conv.test_isinstance(int),
-        origin = conv.pipe(
-            conv.test_isinstance(basestring),
-            conv.empty_to_none,
-            ),
         VALUE = conv.pipe(
             conv.test_isinstance(list),
             conv.uniform_sequence(
@@ -886,6 +893,16 @@ validate_values_holder_xml_json = conv.struct(
             conv.not_none,
             ),
         xml_file_path = conv.test_isinstance(basestring),
+        # baremes-ipp related attributes
+        conflicts = conv.pipe(
+            conv.test_isinstance(basestring),
+            conv.empty_to_none,
+            conv.function(lambda value: value.split(',')),
+            ),
+        origin = conv.pipe(
+            conv.test_isinstance(basestring),
+            conv.empty_to_none,
+            ),
         ),
     constructor = collections.OrderedDict,
     drop_none_values = 'missing',
