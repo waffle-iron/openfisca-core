@@ -2,8 +2,9 @@
 
 import copy
 import collections
+import json
 
-from . import legislations, periods
+from . import conv, legislations, periods
 from taxbenefitsystems import TaxBenefitSystem
 
 
@@ -58,10 +59,18 @@ class Reform(TaxBenefitSystem):
                 modifier_function.__name__,
                 modifier_function.__module__,
                 )
-        reform_legislation_json, error = legislations.validate_legislation_json(reform_legislation_json)
-        assert error is None, \
-            'The modified legislation_json of the reform "{}" is invalid, error: {}'.format(
-                self.key, error).encode('utf-8')
+        reform_legislation_json, errors = legislations.validate_legislation_json(reform_legislation_json)
+        if errors is not None:
+            errors = conv.embed_error(reform_legislation_json, 'errors', errors)
+            if errors is None:
+                raise ValueError(u'The modified legislation_json of the reform "{}" is invalid: {}'.format(
+                    self.key,
+                    json.dumps(reform_legislation_json, ensure_ascii = False, indent = 2),
+                    ).encode('utf-8'))
+            raise ValueError(u'{} for: {}'.format(
+                unicode(json.dumps(errors, ensure_ascii = False, indent = 2, sort_keys = True)),
+                unicode(json.dumps(reform_legislation_json, ensure_ascii = False, indent = 2)),
+                ).encode('utf-8'))
         self._legislation_json = reform_legislation_json
         self.compact_legislation_by_instant_cache = {}
 
