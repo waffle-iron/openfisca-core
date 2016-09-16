@@ -116,7 +116,7 @@ def update_legislation(legislation_json, path, period = None, value = None, star
     return updated_legislation
 
 
-def updated_legislation_items(items, start_instant, value, stop_instant=None):
+def updated_legislation_items(items, start_instant, stop_instant, value):
     """
     This function is deprecated.
 
@@ -230,3 +230,4 @@ def updated_legislation_items(items, start_instant, value, stop_instant=None):
             raise ValueError()
 
     return new_items
+
