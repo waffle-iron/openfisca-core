@@ -98,7 +98,7 @@ def test_updated_legislation_items():
             ],
         periods.period('year', 2013).start,
         periods.period('year', 2013).stop,
-        1,
+        1.0,
         [
             {
                 "start": "2013-01-01",
@@ -119,7 +119,7 @@ def test_updated_legislation_items():
             ],
         periods.period('year', 2011).start,
         periods.period('year', 2011).stop,
-        1,
+        1.0,
         [
             {
                 "start": "2010-01-01",
