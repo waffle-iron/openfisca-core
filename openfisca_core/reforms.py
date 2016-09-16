@@ -87,7 +87,7 @@ def update_legislation(legislation_json, path, period = None, value = None, star
         assert start is None and stop is None, u'period parameter can\'t be used with start and stop'
         start = period.start
         stop = period.stop
-    assert start is not None and stop is not None, u'start and stop must be provided, or period'
+    assert start is not None, u'start must be provided, or period'
 
     def build_node(root_node, path_index):
         if isinstance(root_node, collections.Sequence):
@@ -116,12 +116,11 @@ def update_legislation(legislation_json, path, period = None, value = None, star
     return updated_legislation
 
 
-def updated_legislation_items(items, start_instant, stop_instant, value):
+def updated_legislation_items(items, start_instant, value, stop_instant=None):
     """
     This function is deprecated.
 
-    Iterates items (a dict with start, stop, value key) and returns new items sorted by start date,
-    according to these rules:
+    Iterates items (a dict with start, stop, value key) and returns new items, according to these rules:
     * if the period matches no existing item, the new item is yielded as-is
     * if the period strictly overlaps another one, the new item is yielded as-is
     * if the period non-strictly overlaps another one, the existing item is partitioned, the period in common removed,
@@ -140,7 +139,7 @@ def updated_legislation_items(items, start_instant, stop_instant, value):
         item_stop = item.get('stop')
         if item_stop is not None:
             item_stop = periods.instant(item_stop)
-        if item_stop is not None and item_stop < start_instant or item_start > stop_instant:
+        if item_stop is not None and item_stop < start_instant or stop_instant is None or item_start > stop_instant:
             # non-overlapping items are kept: add and skip
             new_items.append(
                 collections.OrderedDict((
@@ -149,21 +148,19 @@ def updated_legislation_items(items, start_instant, stop_instant, value):
                     ('value', item['value']),
                     ))
                 )
-            continue
-
-        if item_stop == stop_instant and item_start == start_instant:  # exact matching: replace
+        elif (item_stop is None or item_stop == stop_instant) and item_start == start_instant:
+            # exact matching: replace
             if not inserted:
                 new_items.append(
                     collections.OrderedDict((
                         ('start', str(start_instant)),
-                        ('stop', str(stop_instant)),
+                        ('stop', str(stop_instant) if stop_instant is not None else None),
                         ('value', new_item['value']),
                         ))
                     )
                 inserted = True
-            continue
-
-        if item_start < start_instant and item_stop is not None and item_stop <= stop_instant:
+        elif item_start < start_instant and item_stop is not None \
+                and (stop_instant is None or item_stop <= stop_instant):
             # left edge overlapping are corrected and new_item inserted
             new_items.append(
                 collections.OrderedDict((
@@ -176,13 +173,12 @@ def updated_legislation_items(items, start_instant, stop_instant, value):
                 new_items.append(
                     collections.OrderedDict((
                         ('start', str(start_instant)),
-                        ('stop', str(stop_instant)),
+                        ('stop', str(stop_instant) if stop_instant is not None else None),
                         ('value', new_item['value']),
                         ))
                     )
                 inserted = True
-
-        if item_start < start_instant and (item_stop is None or item_stop > stop_instant):
+        elif item_start < start_instant and (item_stop is None or stop_instant is None or item_stop > stop_instant):
             # new_item contained in item: divide, shrink left, insert, new, shrink right
             new_items.append(
                 collections.OrderedDict((
@@ -195,40 +191,42 @@ def updated_legislation_items(items, start_instant, stop_instant, value):
                 new_items.append(
                     collections.OrderedDict((
                         ('start', str(start_instant)),
-                        ('stop', str(stop_instant)),
+                        ('stop', str(stop_instant) if stop_instant is not None else None),
                         ('value', new_item['value']),
                         ))
                     )
                 inserted = True
-
             new_items.append(
                 collections.OrderedDict((
-                    ('start', str(stop_instant.offset(+1, 'day'))),
+                    ('start', str(stop_instant.offset(+1, 'day')) if stop_instant is not None else None),
                     ('stop', item['stop'] if item_stop is not None else None),
                     ('value', item['value']),
                     ))
                 )
-        if item_start >= start_instant and item_stop is not None and item_stop < stop_instant:
+        elif item_start >= start_instant and item_stop is not None \
+                and (stop_instant is None or item_stop < stop_instant):
             # right edge overlapping are corrected
             if not inserted:
                 new_items.append(
                     collections.OrderedDict((
                         ('start', str(start_instant)),
-                        ('stop', str(stop_instant)),
+                        ('stop', str(stop_instant) if stop_instant is not None else None),
                         ('value', new_item['value']),
                         ))
                     )
                 inserted = True
-
             new_items.append(
                 collections.OrderedDict((
-                    ('start', str(stop_instant.offset(+1, 'day'))),
+                    ('start', str(stop_instant.offset(+1, 'day')) if stop_instant is not None else None),
                     ('stop', item['stop']),
                     ('value', item['value']),
                     ))
                 )
-        if item_start >= start_instant and item_stop is not None and item_stop <= stop_instant:
+        elif item_start >= start_instant and item_stop is not None \
+                and (stop_instant is None or item_stop <= stop_instant):
             # drop those
             continue
+        else:
+            raise ValueError()
 
-    return sorted(new_items, key = lambda item: item['start'])
+    return new_items
