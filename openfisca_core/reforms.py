@@ -127,101 +127,68 @@ def updated_legislation_items(items, start_instant, stop_instant, value):
       the new item is yielded as-is and the parts of the existing item are yielded
     """
     assert isinstance(items, collections.Sequence)
+
+    def create_item(start, stop, value):
+        item_items = [('start', str(start))]
+        if stop_instant is not None:
+            item_items.append(('stop', str(stop)))
+        item_items.append(('value', value))
+        return collections.OrderedDict(item_items)
+
     new_items = []
-    new_item = collections.OrderedDict((
-        ('start', start_instant),
-        ('stop', stop_instant),
-        ('value', value),
-        ))
+    new_item = create_item(start_instant, stop_instant, value)
     inserted = False
     for item in items:
         item_start = periods.instant(item['start'])
         item_stop = item.get('stop')
         if item_stop is not None:
             item_stop = periods.instant(item_stop)
-        if item_stop is not None and item_stop < start_instant or stop_instant is None or item_start > stop_instant:
+        if item_stop is not None and item_stop < start_instant or \
+                stop_instant is not None and item_start > stop_instant:
             # non-overlapping items are kept: add and skip
-            new_items.append(
-                collections.OrderedDict((
-                    ('start', item['start']),
-                    ('stop', item['stop'] if item_stop is not None else None),
-                    ('value', item['value']),
-                    ))
-                )
-        elif (item_stop is None or item_stop == stop_instant) and item_start == start_instant:
+            new_items.append(item)
+        elif item_start == start_instant and (item_stop is None or stop_instant is None or item_stop == stop_instant):
             # exact matching: replace
             if not inserted:
-                new_items.append(
-                    collections.OrderedDict((
-                        ('start', str(start_instant)),
-                        ('stop', str(stop_instant) if stop_instant is not None else None),
-                        ('value', new_item['value']),
-                        ))
-                    )
+                new_items.append(create_item(start_instant, item_stop, value))
                 inserted = True
         elif item_start < start_instant and item_stop is not None \
                 and (stop_instant is None or item_stop <= stop_instant):
             # left edge overlapping are corrected and new_item inserted
-            new_items.append(
-                collections.OrderedDict((
-                    ('start', item['start']),
-                    ('stop', str(start_instant.offset(-1, 'day'))),
-                    ('value', item['value']),
-                    ))
-                )
+            new_items.append(create_item(
+                item['start'],
+                str(start_instant.offset(-1, 'day')),
+                item['value'],
+                ))
             if not inserted:
-                new_items.append(
-                    collections.OrderedDict((
-                        ('start', str(start_instant)),
-                        ('stop', str(stop_instant) if stop_instant is not None else None),
-                        ('value', new_item['value']),
-                        ))
-                    )
+                new_items.append(new_item)
                 inserted = True
         elif item_start < start_instant and (item_stop is None or stop_instant is None or item_stop > stop_instant):
             # new_item contained in item: divide, shrink left, insert, new, shrink right
-            new_items.append(
-                collections.OrderedDict((
-                    ('start', item['start']),
-                    ('stop', str(start_instant.offset(-1, 'day'))),
-                    ('value', item['value']),
-                    ))
-                )
+            new_items.append(create_item(
+                item['start'],
+                str(start_instant.offset(-1, 'day')),
+                item['value'],
+                ))
             if not inserted:
-                new_items.append(
-                    collections.OrderedDict((
-                        ('start', str(start_instant)),
-                        ('stop', str(stop_instant) if stop_instant is not None else None),
-                        ('value', new_item['value']),
-                        ))
-                    )
+                new_items.append(new_item)
                 inserted = True
-            new_items.append(
-                collections.OrderedDict((
-                    ('start', str(stop_instant.offset(+1, 'day')) if stop_instant is not None else None),
-                    ('stop', item['stop'] if item_stop is not None else None),
-                    ('value', item['value']),
-                    ))
-                )
+            new_items.append(create_item(
+                str(stop_instant.offset(+1, 'day')) if stop_instant is not None else None,
+                item['stop'] if item_stop is not None else None,
+                item['value'],
+                ))
         elif item_start >= start_instant and item_stop is not None \
                 and (stop_instant is None or item_stop < stop_instant):
             # right edge overlapping are corrected
             if not inserted:
-                new_items.append(
-                    collections.OrderedDict((
-                        ('start', str(start_instant)),
-                        ('stop', str(stop_instant) if stop_instant is not None else None),
-                        ('value', new_item['value']),
-                        ))
-                    )
+                new_items.append(new_item)
                 inserted = True
-            new_items.append(
-                collections.OrderedDict((
-                    ('start', str(stop_instant.offset(+1, 'day')) if stop_instant is not None else None),
-                    ('stop', item['stop']),
-                    ('value', item['value']),
-                    ))
-                )
+            new_items.append(create_item(
+                str(stop_instant.offset(+1, 'day')) if stop_instant is not None else None,
+                item['stop'],
+                item['value'],
+                ))
         elif item_start >= start_instant and item_stop is not None \
                 and (stop_instant is None or item_stop <= stop_instant):
             # drop those

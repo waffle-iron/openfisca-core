@@ -109,6 +109,26 @@ def test_updated_legislation_items():
         )
     yield(
         check_updated_legislation_items,
+        u'Open the stop instant to the future',
+        [
+            {
+                "start": "2013-01-01",
+                "stop": "2013-12-31",
+                "value": 0.0,
+                },
+            ],
+        periods.period('year', 2013).start,
+        None,  # stop instant
+        1.0,
+        [
+            {
+                "start": "2013-01-01",
+                "value": 1.0,
+                },
+            ],
+        )
+    yield(
+        check_updated_legislation_items,
         u'Insert a new item in the middle of an existing item',
         [
             {
