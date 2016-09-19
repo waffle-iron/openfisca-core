@@ -75,12 +75,14 @@ class Reform(TaxBenefitSystem):
         self.compact_legislation_by_instant_cache = {}
 
 
-def update_legislation(legislation_json, path, period = None, value = None, start = None, stop = None):
+def update_legislation(legislation_json, path=None, period=None, value=None, start=None, stop=None):
     """
     Update legislation JSON with a value defined for a specific couple of period defined by
     its start and stop instant or a period object.
 
-    This function does not modify input parameters.
+    Returns the modified `legislation_json`.
+
+    This function does not modify its arguments.
     """
     assert value is not None
     if period is not None:
@@ -100,7 +102,7 @@ def update_legislation(legislation_json, path, period = None, value = None, star
                 (
                     key,
                     (
-                        updated_legislation_items(node, start, stop, value)
+                        update_items(node, start, stop, value)
                         if path_index == len(path) - 1
                         else build_node(node, path_index + 1)
                         )
@@ -116,85 +118,57 @@ def update_legislation(legislation_json, path, period = None, value = None, star
     return updated_legislation
 
 
-def updated_legislation_items(items, start_instant, stop_instant, value):
-    """
-    This function is deprecated.
+def update_items(items, start, stop, value):
+    def is_contained_in(inner, outer):
+        '''Returns True if `inner` is contained in `outer`.'''
+        return inner['start'] >= outer['start'] and (
+            outer.get('stop') is None or inner.get('stop') is not None and inner['stop'] <= outer['stop']
+            )
 
-    Iterates items (a dict with start, stop, value key) and returns new items, according to these rules:
-    * if the period matches no existing item, the new item is yielded as-is
-    * if the period strictly overlaps another one, the new item is yielded as-is
-    * if the period non-strictly overlaps another one, the existing item is partitioned, the period in common removed,
-      the new item is yielded as-is and the parts of the existing item are yielded
-    """
-    assert isinstance(items, collections.Sequence)
+    items = sorted(items, key=lambda item: item['start'])
+    new_item = create_item(start, stop, value)
+    split_items = list(split_item_containing_instant(
+        stop.offset(+1, 'day') if stop is not None else None,
+        split_item_containing_instant(start, items),
+        ))
+    not_contained_items = filter(lambda item: not is_contained_in(item, new_item), split_items)
+    if not_contained_items and not_contained_items[-1].get('stop') is None:
+        not_contained_items[-1]['stop'] = str(start.offset(-1, 'day'))
+    new_items = sorted(not_contained_items + [new_item], key=lambda item: item['start'])
+    return new_items
 
-    def create_item(start, stop, value):
-        item_items = [('start', str(start))]
-        if stop_instant is not None:
-            item_items.append(('stop', str(stop)))
-        item_items.append(('value', value))
-        return collections.OrderedDict(item_items)
 
-    new_items = []
-    new_item = create_item(start_instant, stop_instant, value)
-    inserted = False
+def create_item(start, stop, value):
+    dict_items = []
+    if start is not None:
+        dict_items.append(('start', str(start)))
+    if stop is not None:
+        dict_items.append(('stop', str(stop)))
+    dict_items.append(('value', value))
+    return collections.OrderedDict(dict_items)
+
+
+def split_item_containing_instant(instant, items):
+    '''
+    Returns `items` list updated so that the item containing `instant` is split.
+
+    If `instant` is contained in an item, it will be the start instant of the matching item.
+    '''
     for item in items:
         item_start = periods.instant(item['start'])
         item_stop = item.get('stop')
         if item_stop is not None:
             item_stop = periods.instant(item_stop)
-        if item_stop is not None and item_stop < start_instant or \
-                stop_instant is not None and item_start > stop_instant:
-            # non-overlapping items are kept: add and skip
-            new_items.append(item)
-        elif item_start == start_instant and (item_stop is None or stop_instant is None or item_stop == stop_instant):
-            # exact matching: replace
-            if not inserted:
-                new_items.append(create_item(start_instant, item_stop, value))
-                inserted = True
-        elif item_start < start_instant and item_stop is not None \
-                and (stop_instant is None or item_stop <= stop_instant):
-            # left edge overlapping are corrected and new_item inserted
-            new_items.append(create_item(
+        if item_start < instant and instant < item_stop:
+            yield create_item(
                 item['start'],
-                str(start_instant.offset(-1, 'day')),
+                str(instant.offset(-1, 'day')),
                 item['value'],
-                ))
-            if not inserted:
-                new_items.append(new_item)
-                inserted = True
-        elif item_start < start_instant and (item_stop is None or stop_instant is None or item_stop > stop_instant):
-            # new_item contained in item: divide, shrink left, insert, new, shrink right
-            new_items.append(create_item(
-                item['start'],
-                str(start_instant.offset(-1, 'day')),
-                item['value'],
-                ))
-            if not inserted:
-                new_items.append(new_item)
-                inserted = True
-            new_items.append(create_item(
-                str(stop_instant.offset(+1, 'day')) if stop_instant is not None else None,
-                item['stop'] if item_stop is not None else None,
-                item['value'],
-                ))
-        elif item_start >= start_instant and item_stop is not None \
-                and (stop_instant is None or item_stop < stop_instant):
-            # right edge overlapping are corrected
-            if not inserted:
-                new_items.append(new_item)
-                inserted = True
-            new_items.append(create_item(
-                str(stop_instant.offset(+1, 'day')) if stop_instant is not None else None,
+                )
+            yield create_item(
+                str(instant),
                 item['stop'],
-                item['value'],
-                ))
-        elif item_start >= start_instant and item_stop is not None \
-                and (stop_instant is None or item_stop <= stop_instant):
-            # drop those
-            continue
+                item['value']
+                )
         else:
-            raise ValueError()
-
-    return new_items
-
+            yield item

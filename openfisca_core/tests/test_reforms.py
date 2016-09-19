@@ -5,8 +5,8 @@ import datetime
 from nose.tools import raises
 from nose.tools import assert_equal
 
-from .. import columns, periods
-from ..reforms import Reform, compose_reforms, updated_legislation_items
+from .. import columns, periods, reforms
+from ..reforms import Reform
 from ..formulas import dated_function
 from ..variables import Variable, DatedVariable
 from ..periods import Instant
@@ -81,81 +81,122 @@ def test_input_variable_neutralization():
     assert_near(revenu_disponible_reform, [3600, 3600], absolute_error_margin = 0)
 
 
-def test_updated_legislation_items():
-    def check_updated_legislation_items(description, items, start_instant, stop_instant, value, expected_items):
-        new_items = updated_legislation_items(items, start_instant, stop_instant, value)
+def test_split_item_containing_instant():
+    def check_split_item_containing_instant(description, items, instant, expected_items):
+        new_items = reforms.split_item_containing_instant(instant, items)
         assert_equal(map(dict, new_items), expected_items)
 
-    yield(
-        check_updated_legislation_items,
-        u'Replace an item by a new item',
+    item = [{'start': '2015-01-01', 'stop': '2015-12-31', 'value': 1.0}]
+    items = [
+        {'start': '2014-01-01', 'stop': '2014-12-31', 'value': 1.0},
+        {'start': '2015-01-01', 'stop': '2015-12-31', 'value': 2.0},
+        {'start': '2016-01-01', 'stop': '2016-12-31', 'value': 3.0},
+        ]
+
+    yield (
+        check_split_item_containing_instant,
+        u'Instant is the start instant of a single item',
+        item,
+        periods.instant('2015-01-01'),
+        item,
+        )
+    yield (
+        check_split_item_containing_instant,
+        u'Instant is the start instant of an item',
+        items,
+        periods.instant('2015-01-01'),
+        items,
+        )
+    yield (
+        check_split_item_containing_instant,
+        u'Instant is the stop instant of a single item',
+        item,
+        periods.instant('2015-12-31'),
+        item,
+        )
+    yield (
+        check_split_item_containing_instant,
+        u'Instant is the stop instant of an item',
+        items,
+        periods.instant('2015-12-31'),
+        items,
+        )
+    yield (
+        check_split_item_containing_instant,
+        u'Instant is between start and stop instants of a single item',
+        item,
+        periods.instant('2015-04-16'),
         [
-            {
-                "start": "2013-01-01",
-                "stop": "2013-12-31",
-                "value": 0.0,
-                },
+            {'start': '2015-01-01', 'stop': '2015-04-15', 'value': 1.0},
+            {'start': '2015-04-16', 'stop': '2015-12-31', 'value': 1.0},
             ],
+        )
+    yield (
+        check_split_item_containing_instant,
+        u'Instant is outside all items in the past',
+        items,
+        periods.instant('2012-01-01'),
+        items,
+        )
+    yield (
+        check_split_item_containing_instant,
+        u'Instant is outside all items in the future',
+        items,
+        periods.instant('2017-01-01'),
+        items,
+        )
+
+
+def test_update_items():
+    def check_update_items(description, items, start_instant, stop_instant, value, expected_items):
+        new_items = reforms.update_items(items, start_instant, stop_instant, value)
+        assert_equal(map(dict, new_items), expected_items)
+
+    yield (
+        check_update_items,
+        u'Replace an item by a new item',
+        [{"start": "2013-01-01", "stop": "2013-12-31", "value": 0.0}],
         periods.period('year', 2013).start,
         periods.period('year', 2013).stop,
         1.0,
-        [
-            {
-                "start": "2013-01-01",
-                "stop": "2013-12-31",
-                "value": 1.0,
-                },
-            ],
+        [{"start": "2013-01-01", "stop": "2013-12-31", "value": 1.0}],
         )
-    yield(
-        check_updated_legislation_items,
+    yield (
+        check_update_items,
         u'Open the stop instant to the future',
-        [
-            {
-                "start": "2013-01-01",
-                "stop": "2013-12-31",
-                "value": 0.0,
-                },
-            ],
+        [{"start": "2013-01-01", "stop": "2013-12-31", "value": 0.0}],
         periods.period('year', 2013).start,
         None,  # stop instant
         1.0,
-        [
-            {
-                "start": "2013-01-01",
-                "value": 1.0,
-                },
-            ],
+        [{"start": "2013-01-01", "value": 1.0}],
         )
-    yield(
-        check_updated_legislation_items,
+    yield (
+        check_update_items,
         u'Insert a new item in the middle of an existing item',
-        [
-            {
-                "start": "2010-01-01",
-                "stop": "2013-12-31",
-                "value": 0.0,
-                },
-            ],
+        [{"start": "2010-01-01", "stop": "2013-12-31", "value": 0.0}],
         periods.period('year', 2011).start,
         periods.period('year', 2011).stop,
         1.0,
         [
-            {
-                "start": "2010-01-01",
-                "stop": "2010-12-31",
-                "value": 0.0,
-                },
-            {
-                "start": "2011-01-01",
-                "stop": "2011-12-31",
-                "value": 1.0,
-                },
-            {
-                "start": "2012-01-01",
-                "stop": "2013-12-31",
-                "value": 0.0,
-                },
+            {"start": "2010-01-01", "stop": "2010-12-31", "value": 0.0},
+            {"start": "2011-01-01", "stop": "2011-12-31", "value": 1.0},
+            {"start": "2012-01-01", "stop": "2013-12-31", "value": 0.0},
+            ],
+        )
+    yield (
+        check_update_items,
+        u'Insert a new opened item coming after the last opened item',
+        [
+            {"start": "2014-01-01", "value": 0.14},
+            {"start": "2006-01-01", "stop": "2013-12-31", "value": 0.055},
+            ],
+        periods.period('year', 2015).start,
+        None,  # stop instant
+        1.0,
+        [
+            {"start": "2006-01-01", "stop": "2013-12-31", "value": 0.055},
+            {"start": "2014-01-01", "stop": "2014-12-31", "value": 0.14},
+            {"start": "2015-01-01", "value": 1},
             ],
         )
 
@@ -287,7 +328,7 @@ def test_compose_reforms():
         def apply(self):
             self.update_variable(self.nouvelle_variable)
 
-    reform = compose_reforms([first_reform, second_reform], tax_benefit_system)
+    reform = reforms.compose_reforms([first_reform, second_reform], tax_benefit_system)
     year = 2013
     scenario = reform.new_scenario().init_single_entity(
         period = year,
