@@ -45,6 +45,12 @@ class Node(object):
         self.simulation = simulation
         self.default = default
 
+    def __repr__(self):
+        return u'Node(entity={}, value={})'.format(
+            repr(dict(self.entity)['key_plural']),
+            repr(self.value),
+            )
+
     def copy(self):
         return Node(self.value, self.entity, self.simulation, self.default)
 
