@@ -1,3 +1,6 @@
+# -*- coding: utf-8 -*-
+
+
 '''
 A column is just an empty shell still used to be compatible with openfisca-core v3.
 

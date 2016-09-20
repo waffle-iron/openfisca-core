@@ -1,3 +1,6 @@
+# -*- coding: utf-8 -*-
+
+
 """
 The Variable class calls coutry_level function and manages period cutting and entity-to-entity manipulations.
 
