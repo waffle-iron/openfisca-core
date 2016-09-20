@@ -264,35 +264,107 @@ class AbstractSimulation(object):
     def get_or_new_holder(self, variable_name):
         return self.variable_by_name[variable_name]
 
-    def calculate(self, variable_name, period=None, caller_name='calculate', **parameters):
+    def calculate(self, variable_name, period=None, caller_name='calculate',
+            extra_params=None, max_nb_cycles=None, accept_other_period=None):
+        # TODO Remove accept_other_period? Who uses it?
         if variable_name not in self.variable_by_name:
             raise VariableNotFound(u'Variable "{}" not found'.format(variable_name))
         variable = self.variable_by_name[variable_name]
-        return variable.calculate(period=period, caller_name=caller_name, **parameters)
+        return variable.calculate(
+            period=period,
+            caller_name=caller_name,
+            extra_params=extra_params,
+            max_nb_cycles=max_nb_cycles,
+            accept_other_period=accept_other_period,
+            )
 
-    def calculate_add(self, variable_name, period=None, **parameters):
-        return self.calculate(variable_name, period, 'calculate_add', **parameters)
+    def calculate_add(self, variable_name, period=None,
+            extra_params=None, max_nb_cycles=None, accept_other_period=None):
+        return self.calculate(
+            variable_name=variable_name,
+            period=period,
+            caller_name='calculate_add',
+            extra_params=extra_params,
+            max_nb_cycles=max_nb_cycles,
+            accept_other_period=accept_other_period,
+            )
 
-    def calculate_add_divide(self, variable_name, period=None, **parameters):
-        return self.calculate(variable_name, period, 'calculate_add_divide', **parameters)
+    def calculate_add_divide(self, variable_name, period=None,
+            extra_params=None, max_nb_cycles=None, accept_other_period=None):
+        return self.calculate(
+            variable_name=variable_name,
+            period=period,
+            caller_name='calculate_add_divide',
+            extra_params=extra_params,
+            max_nb_cycles=max_nb_cycles,
+            accept_other_period=accept_other_period,
+            )
 
-    def calculate_divide(self, variable_name, period=None, **parameters):
-        return self.calculate(variable_name, period, 'calculate_divide', **parameters)
+    def calculate_divide(self, variable_name, period=None,
+            extra_params=None, max_nb_cycles=None, accept_other_period=None):
+        return self.calculate(
+            variable_name=variable_name,
+            period=period,
+            caller_name='calculate_divide',
+            extra_params=extra_params,
+            max_nb_cycles=max_nb_cycles,
+            accept_other_period=accept_other_period,
+            )
 
-    def compute(self, variable_name, period=None, **parameters):
-        return self.calculate(variable_name, period, 'compute', **parameters)
+    def compute(self, variable_name, period=None,
+            extra_params=None, max_nb_cycles=None, accept_other_period=None):
+        return self.calculate(
+            variable_name=variable_name,
+            period=period,
+            caller_name='compute',
+            extra_params=extra_params,
+            max_nb_cycles=max_nb_cycles,
+            accept_other_period=accept_other_period,
+            )
 
-    def compute_add(self, variable_name, period=None, **parameters):
-        return self.calculate(variable_name, period, 'compute_add', **parameters)
+    def compute_add(self, variable_name, period=None,
+            extra_params=None, max_nb_cycles=None, accept_other_period=None):
+        return self.calculate(
+            variable_name=variable_name,
+            period=period,
+            caller_name='compute_add',
+            extra_params=extra_params,
+            max_nb_cycles=max_nb_cycles,
+            accept_other_period=accept_other_period,
+            )
 
-    def compute_add_divide(self, variable_name, period=None, **parameters):
-        return self.calculate(variable_name, period, 'compute_add_divide', **parameters)
+    def compute_add_divide(self, variable_name, period=None,
+            extra_params=None, max_nb_cycles=None, accept_other_period=None):
+        return self.calculate(
+            variable_name=variable_name,
+            period=period,
+            caller_name='compute_add_divide',
+            extra_params=extra_params,
+            max_nb_cycles=max_nb_cycles,
+            accept_other_period=accept_other_period,
+            )
 
-    def compute_divide(self, variable_name, period=None, **parameters):
-        return self.calculate(variable_name, period, 'compute_divide', **parameters)
+    def compute_divide(self, variable_name, period=None,
+            extra_params=None, max_nb_cycles=None, accept_other_period=None):
+        return self.calculate(
+            variable_name=variable_name,
+            period=period,
+            caller_name='compute_divide',
+            extra_params=extra_params,
+            max_nb_cycles=max_nb_cycles,
+            accept_other_period=accept_other_period,
+            )
 
-    def calculate_output(self, variable_name, period=None, **parameters):
-        return self.calculate(variable_name, period, 'calculate_output', **parameters)
+    def calculate_output(self, variable_name, period=None,
+            extra_params=None, max_nb_cycles=None, accept_other_period=None):
+        return self.calculate(
+            variable_name=variable_name,
+            period=period,
+            caller_name='calculate_output',
+            extra_params=extra_params,
+            max_nb_cycles=max_nb_cycles,
+            accept_other_period=accept_other_period,
+            )
 
     def get_compact_legislation(self, instant):
         compact_legislation = self.compact_legislation_by_instant_cache.get(instant)

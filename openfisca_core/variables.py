@@ -57,7 +57,7 @@ class Variable(object):
         if not extra_params:
             self._array_by_period[period] = value
         else:
-            key = tuple(extra_params['extra_params'])
+            key = tuple(extra_params)
             if self._array_by_period.get(period) is None:
                 self._array_by_period[period] = {}
             self._array_by_period[period][key] = value
@@ -75,8 +75,8 @@ class Variable(object):
         if self._array_by_period is not None:
             values = self._array_by_period.get(period)
             if values is not None:
-                if extra_params:
-                    key = tuple(extra_params['extra_params'])
+                if extra_params is not None:
+                    key = tuple(extra_params)
                     return np.copy(values.get(key))
                 else:
                     if(type(values) == dict):
@@ -92,39 +92,32 @@ class Variable(object):
         array = np.zeros(count, dtype=self.dtype)
         return Node(array, self.entity, self.simulation, 0)
 
-
-    def calculate(self, period, caller_name, **extra_params):
-        if 'accept_other_period' in extra_params:
-            del extra_params['accept_other_period']
-
-        if 'max_nb_cycles' in extra_params:
-            del extra_params['max_nb_cycles']
-
-        if period == None:
+    def calculate(self, period, caller_name, extra_params=None, max_nb_cycles=None, accept_other_period=None):
+        if period is None:
             period = self.simulation.period
         elif not isinstance(period, periods.Period):
             period = periods.period(period)
+
+        assert extra_params is None or isinstance(extra_params, list) and extra_params, \
+            (extra_params, 'extra_params argument must be None or a non-empty list')
 
         value = self.get_from_cache(period, extra_params)
         if value is not None:
             return Node(value, self.entity, self.simulation, self.default)
 
         if caller_name in ['calculate', 'compute', '_array', 'calculate_output']:
-            output_period, node = self.calculate_one_period(period, extra_params)
+            output_period, node = self._calculate_one_period(period, extra_params)
             return node
         elif caller_name in ['calculate_add', 'compute_add']:
-            return self.calculate_and_add(period, extra_params)
+            return self._calculate_and_add(period, extra_params)
         elif caller_name in ['calculate_divide', 'compute_divide']:
-            return self.calculate_and_divide(period, extra_params)
+            return self._calculate_and_divide(period, extra_params)
         elif caller_name in ['calculate_add_divide', 'compute_add_divide']:
-            return self.calculate_and_add_and_divide(period, extra_params)
+            return self._calculate_and_add_and_divide(period, extra_params)
 
         raise Exception('Unknown caller_name : {}'.format(caller_name))
 
-    def calculate_one_period(self, period, extra_params):
-        if 'accept_other_period' in extra_params:
-            del extra_params['accept_other_period']
-
+    def _calculate_one_period(self, period, extra_params):
         value = self.get_from_cache(period, extra_params)
         if value is not None:
             return period, Node(value, self.entity, self.simulation, self.default)
@@ -138,7 +131,7 @@ class Variable(object):
                 output_period = period.intersection(function['start_instant'], function['stop_instant'])
                 if output_period is None:
                     continue
-                output_period2, node = function['function'](self, self.simulation, output_period, **extra_params)
+                output_period2, node = function['function'](self, self.simulation, output_period, *extra_params)
                 if node.value.dtype != self.dtype:
                     node.value = node.value.astype(self.dtype)
                 node.default = self.default
@@ -241,7 +234,7 @@ class Variable(object):
 
         raise Exception('Unknown base class')
 
-    def calculate_and_add(self, period, extra_params):
+    def _calculate_and_add(self, period, extra_params):
         period_node = None
         unit = period.unit
         if unit == u'month':
@@ -251,9 +244,9 @@ class Variable(object):
             remaining_period_months = period.size * 12
         requested_period = period.start.period(unit)
         # We expect the compute calls to return a period different than the requested one.
-        extra_params['accept_other_period'] = True
+        # accept_other_period = True
         while True:
-            returned_period, subperiod_node = self.calculate_one_period(requested_period, extra_params)
+            returned_period, subperiod_node = self._calculate_one_period(requested_period, extra_params)
             requested_start = requested_period.start
             returned_start = returned_period.start
             assert returned_start.day == 1
@@ -289,7 +282,7 @@ class Variable(object):
             else:
                 requested_period = requested_start.offset(returned_period_months, u'month').period(u'month')
 
-    def calculate_and_add_and_divide(self, period, extra_params):
+    def _calculate_and_add_and_divide(self, period, extra_params):
         period_node = None
         unit = period.unit
         if unit == u'month':
@@ -299,9 +292,9 @@ class Variable(object):
             remaining_period_months = period.size * 12
         requested_period = period.start.period(unit)
         # We expect the compute calls to return a period different than the requested one.
-        extra_params['accept_other_period'] = True
+        # accept_other_period = True
         while True:
-            returned_period, subperiod_node = self.calculate_one_period(requested_period, extra_params)
+            returned_period, subperiod_node = self._calculate_one_period(requested_period, extra_params)
             requested_start = requested_period.start
             returned_start = returned_period.start
             assert returned_start.day == 1
@@ -336,13 +329,13 @@ class Variable(object):
             else:
                 requested_period = requested_start.offset(intersection_months, u'month').period(u'month')
 
-    def calculate_and_divide(self, period, extra_params):
+    def _calculate_and_divide(self, period, extra_params):
         unit = period[0]
         year, month, day = period.start
         if unit == u'month':
             # We expect the compute call to return a yearly period.
-            extra_params['accept_other_period'] = True
-            returned_period, subperiod_node = self.calculate_one_period(period, extra_params)
+            # accept_other_period = True
+            returned_period, subperiod_node = self._calculate_one_period(period, extra_params)
             assert returned_period.start <= period.start and period.stop <= returned_period.stop, \
                 "Period {} returned by variable {} doesn't include requested period {}.".format(
                     returned_period, self.name, period)
@@ -357,11 +350,11 @@ class Variable(object):
             return Node(array, self.entity, self.simulation, self.default)
         else:
             assert unit == u'year', unit
-            return self.calculate(period, extra_params)
+            return self._calculate_one_period(period, extra_params)
 
     @property
     def _array(self):
-        return self.calculate(None, '_array')
+        return self.calculate(period=None, caller_name='_array')
 
     def split_by_roles(self, node, default=None, entity=None, roles=None):
         # TODO Move this method as a method of Node? Perhaps other methods too?
@@ -616,7 +609,6 @@ class Variable(object):
                 conv.function(lambda array: {period: array}),
                 ),
             )
-
 
 
 class PersonToEntityColumn(Variable):

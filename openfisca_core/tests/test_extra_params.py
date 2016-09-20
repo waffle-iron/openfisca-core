@@ -14,7 +14,7 @@ class formula_1(Variable):
     entity_class = Individus
 
     def function(self, simulation, period):
-        return period, simulation.calculate('formula_3', period, choice=0)
+        return period, simulation.calculate('formula_3', period, extra_params=[0])
 
 
 class formula_2(Variable):
@@ -22,7 +22,7 @@ class formula_2(Variable):
     entity_class = Individus
 
     def function(self, simulation, period):
-        return period, simulation.calculate('formula_3', period, choice=1)
+        return period, simulation.calculate('formula_3', period, extra_params=[1])
 
 
 class formula_3(Variable):

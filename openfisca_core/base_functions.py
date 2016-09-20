@@ -9,18 +9,15 @@ from node import Node
 '''
 Base functions
 
-These fonctions are called by Variable.calculate_one_period() when the period is not a month or a year.
+These fonctions are called by Variable._calculate_one_period() when the period is not a month or a year.
 Each function implements a different behavior (extensive, intensive, static...).
 
 This is redundant with the "caller_name" parameter of Variable.calculate().
-
 '''
 
+
 def call_with_extra_params(function, variable, simulation, period, extra_params):
-    if 'extra_params' in extra_params:
-        return function(variable, simulation, period, *extra_params['extra_params'])
-    else:
-        return function(variable, simulation, period)
+    return function(variable, simulation, period, *(extra_params or []))
 
 
 def permanent_default_value(variable, simulation, period, extra_params):
@@ -95,10 +92,9 @@ def requested_period_default_value_neutralized(variable, simulation, period, **e
     return period, Node(array, variable.entity, simulation)
 
 
-def requested_period_last_value(variable, simulation, period, extra_params):
+def requested_period_last_value(variable, simulation, period, extra_params, accept_future_value=False):
     # This formula is used for variables that are constants between events and period size independent.
     # It returns the latest known value for the requested period.
-    accept_future_value = extra_params.pop('accept_future_value', False)
     if variable._array_by_period:
         known_values = sorted(variable._array_by_period.iteritems(), reverse=True)
         for last_period, last_array in known_values:
@@ -121,8 +117,7 @@ def requested_period_last_value(variable, simulation, period, extra_params):
 def requested_period_last_or_next_value(variable, simulation, period, extra_params):
     # This formula is used for variables that are constants between events and period size independent.
     # It returns the latest known value for the requested period, or the next value if there is no past value.
-    extra_params['accept_future_value'] = True
-    return requested_period_last_value(variable, simulation, period, extra_params)
+    return requested_period_last_value(variable, simulation, period, extra_params, accept_future_value=True)
 
 
 def last_duration_last_value(variable, simulation, period, extra_params):
@@ -148,5 +143,4 @@ def missing_value(variable, simulation, period, extra_params):
         assert(len(variable.functions) == 1)
         function = variable.functions[0]['function']
         return call_with_extra_params(function, variable, simulation, period, extra_params)
-
     raise ValueError(u"Missing value for variable {} at {}".format(variable.name, period))
