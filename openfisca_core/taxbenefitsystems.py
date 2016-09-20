@@ -101,6 +101,8 @@ class TaxBenefitSystem(object):
         if existing_variable_class and update:
             variable_class.reference = existing_variable_class
 
+        # TODO Replace setattr and hasattr by None attributes and assignments
+
         setattr(variable_class, 'name', name)
         setattr(variable_class, 'base_class', variable_class.__bases__[0])
 
@@ -228,13 +230,13 @@ class TaxBenefitSystem(object):
 
 
         # define base function
-        if not hasattr(variable_class, 'base_function'):
+        if variable_class.base_function is None:
             if variable_class.is_permanent:
-                setattr(variable_class, 'base_function', base_functions.permanent_default_value)
+                variable_class.base_function = base_functions.permanent_default_value
             elif variable_class.is_period_size_independent:
-                setattr(variable_class, 'base_function', base_functions.requested_period_last_value)
+                variable_class.base_function = base_functions.requested_period_last_value
             else:
-                setattr(variable_class, 'base_function', base_functions.requested_period_default_value)
+                variable_class.base_function = base_functions.requested_period_default_value
 
         # rename 'entity_class' to 'entity'
         assert hasattr(variable_class, 'entity_class')

@@ -38,6 +38,7 @@ year_or_month_or_day_re = re.compile(ur'(18|19|20)\d{2}(-(0?[1-9]|1[0-2])(-([0-2
 
 
 class Variable(object):
+    base_function = None  # Assigned by TaxBenefitSystem.load_variable_class
     function = None
 
     def __init__(self, simulation):
