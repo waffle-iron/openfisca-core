@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+
 """
 A simulation contains an instance of each variable class defined by the country tax benefit system.
 
@@ -9,7 +10,6 @@ The creation of a simulation follows these steps :
 * checking and processing pipelines using biryani
 * instantiation of every variable of the tax benefit system, filled by input data
 """
-
 
 
 import collections

@@ -363,13 +363,14 @@ class Variable(object):
         return self.calculate(None, '_array')
 
     def split_by_roles(self, node, default=None, entity=None, roles=None):
+        # TODO Move this method as a method of Node? Perhaps other methods too?
         """dispatch a persons array to several entity arrays (one for each role)."""
         if entity is None:
             entity = self.entity
         else:
             entity = [ent for ent in self.simulation.entities if dict(ent)['key_singular'] == entity][0]
             assert entity in self.simulation.entities, u"Unknown entity: {}".format(entity).encode('utf-8')
-        assert not 'is_persons_entity' in dict(entity)
+        assert 'is_persons_entity' not in dict(entity)
 
         count = self.simulation.entity_data[entity]['count']
         assert isinstance(node, Node)

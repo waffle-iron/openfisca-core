@@ -1,15 +1,14 @@
 # -*- coding: utf-8 -*-
 
+
 '''
 A node is a wrapper over the result of a computation.
 
-The node class overrides every operation used by coutry_level codes, including infix operators (+, *, ...). Other numpy operators are overloaded in numpy_wrapper.
+The node class overrides every operation used by coutry_level codes, including infix operators (+, *, ...).
+Other numpy operators are overloaded in numpy_wrapper.
 
-In this current implementation, a node contains a numpy array. Another implementation could defer the computation and contain references to parent nodes.
-
-The Shell class encapsulates non vectorial results to avoid TypeError exceptions in cases like :
-> np.datetime64('2015-01-01') - a_node_instance
-
+In this current implementation, a node contains a numpy array.
+Another implementation could defer the computation and contain references to parent nodes.
 '''
 
 
@@ -18,7 +17,12 @@ from __future__ import division
 import numpy as np
 
 
-class Shell:
+class Shell(object):
+    # TODO Rename by ScalarWrapper?
+    '''
+    This class encapsulates scalar results (non vectorial) to customize operators between `Node` and `Shell` instances.
+    '''
+
     def __init__(self, value):
         self.value = value
 
@@ -33,6 +37,9 @@ class Node(object):
     """A container for a numpy array"""
 
     def __init__(self, value, entity, simulation, default=None):
+        # Copy value, otherwise write in cache.
+        # TODO Remove copy, Node.__setitem__ and see what fails,
+        # and try to solve it with an explicit Node.clone method.
         self.value = np.copy(value)
         self.entity = entity
         self.simulation = simulation
@@ -124,12 +131,12 @@ class Node(object):
     def astype(self, *args, **kwargs):
         return self.override_unary('astype', *args, **kwargs)
 
-    # -x
     def __neg__(self):
+        '''Implements unary -x'''
         return self.override_unary('__neg__')
 
-    # ~x
     def __invert__(self):
+        '''Implements unary ~x'''
         return self.override_unary('__invert__')
 
     def __getitem__(self, key):

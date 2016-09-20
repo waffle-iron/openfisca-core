@@ -1,5 +1,13 @@
 # -*- coding: utf-8 -*-
 
+
+'''
+Functions wrapping NumPy functions and returning Node instances.
+'''
+
+# TODO Move in node.py and export a dict in __init__.py so that caller does:
+# from openfisca_core.numpy_wrappers as np
+
 from functools import partial
 
 import numpy as np
@@ -106,6 +114,7 @@ def where(condition, x, y):
     return mixed_type_function(np.where, [condition, x, y])
 
 def fromiter():
+    # Why?
     raise Exception()
 
 def take(a, indices):
