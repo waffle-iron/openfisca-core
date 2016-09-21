@@ -4,8 +4,10 @@ import copy
 import collections
 import json
 
+from biryani.strings import deep_encode
+
 from . import conv, legislations, periods
-from taxbenefitsystems import TaxBenefitSystem
+from .taxbenefitsystems import TaxBenefitSystem
 
 
 def compose_reforms(reforms, tax_benefit_system):
@@ -63,10 +65,23 @@ class Reform(TaxBenefitSystem):
         if errors is not None:
             errors = conv.embed_error(reform_legislation_json, 'errors', errors)
             if errors is None:
-                raise ValueError(u'The modified legislation_json of the reform "{}" is invalid: {}'.format(
-                    self.key,
-                    json.dumps(reform_legislation_json, ensure_ascii = False, indent = 2),
-                    ).encode('utf-8'))
+                legislation_json_str = json.dumps(
+                    deep_encode(reform_legislation_json),
+                    ensure_ascii = False,
+                    indent = 2,
+                    )
+                raise ValueError('The modified legislation_json of the reform "{}" is invalid: {}'.format(
+                    self.key.encode('utf-8'), legislation_json_str))
+                # This allows to write the errored legislation in a file.
+                # import tempfile
+                # with tempfile.NamedTemporaryFile(
+                #         delete=False,
+                #         prefix=u'{}_legislation_'.format(self.key),
+                #         suffix=u'.json',
+                #         ) as json_file:
+                #     json_file.write(legislation_json_str)
+                # raise ValueError(('The modified legislation_json of the reform "{}" is invalid: '
+                #         'see "{}" (errors are embedded)').format(self.key.encode('utf-8'), json_file.name))
             raise ValueError(u'{} for: {}'.format(
                 unicode(json.dumps(errors, ensure_ascii = False, indent = 2, sort_keys = True)),
                 unicode(json.dumps(reform_legislation_json, ensure_ascii = False, indent = 2)),
@@ -91,28 +106,28 @@ def update_legislation(legislation_json, path=None, period=None, value=None, sta
         stop = period.stop
     assert start is not None, u'start must be provided, or period'
 
-    def build_node(root_node, path_index):
-        if isinstance(root_node, collections.Sequence):
+    def build_node(node, path_index):
+        if isinstance(node, collections.Sequence):
             return [
-                build_node(node, path_index + 1) if path[path_index] == index else node
-                for index, node in enumerate(root_node)
+                build_node(child_node, path_index + 1) if path[path_index] == index else child_node
+                for index, child_node in enumerate(node)
                 ]
-        elif isinstance(root_node, collections.Mapping):
+        elif isinstance(node, collections.Mapping):
             return collections.OrderedDict((
                 (
                     key,
                     (
-                        update_items(node, start, stop, value)
+                        update_items(child_node, start, stop, value)
                         if path_index == len(path) - 1
-                        else build_node(node, path_index + 1)
+                        else build_node(child_node, path_index + 1)
                         )
                     if path[path_index] == key
-                    else node
+                    else child_node
                     )
-                for key, node in root_node.iteritems()
+                for key, child_node in node.iteritems()
                 ))
         else:
-            raise ValueError(u'Unexpected type for node: {!r}'.format(root_node))
+            raise ValueError(u'Unexpected type for node: {!r}'.format(node))
 
     updated_legislation = build_node(legislation_json, 0)
     return updated_legislation
@@ -124,16 +139,17 @@ def update_items(items, start, stop, value):
         return inner['start'] >= outer['start'] and (
             outer.get('stop') is None or inner.get('stop') is not None and inner['stop'] <= outer['stop']
             )
-
     items = sorted(items, key=lambda item: item['start'])
     new_item = create_item(start, stop, value)
-    split_items = list(split_item_containing_instant(
-        stop.offset(+1, 'day') if stop is not None else None,
-        split_item_containing_instant(start, items),
-        ))
-    not_contained_items = filter(lambda item: not is_contained_in(item, new_item), split_items)
-    if not_contained_items and not_contained_items[-1].get('stop') is None:
-        not_contained_items[-1]['stop'] = str(start.offset(-1, 'day'))
+    split_items = list(split_item_containing_instant(start, items))
+    if stop is not None:
+        split_items = list(split_item_containing_instant(stop.offset(+1, 'day'), split_items))
+    not_contained_items = list(filter(lambda item: not is_contained_in(item, new_item), split_items))
+    if not_contained_items and not_contained_items[-1].get('stop') is None \
+            and str(start) > not_contained_items[-1]['start']:
+        last_not_contained_item = not_contained_items[-1].copy()  # Copy to avoid modifying `items` argument.
+        last_not_contained_item['stop'] = str(start.offset(-1, 'day'))
+        not_contained_items[-1] = last_not_contained_item
     new_items = sorted(not_contained_items + [new_item], key=lambda item: item['start'])
     return new_items
 
@@ -154,12 +170,13 @@ def split_item_containing_instant(instant, items):
 
     If `instant` is contained in an item, it will be the start instant of the matching item.
     '''
+    assert instant is not None
     for item in items:
         item_start = periods.instant(item['start'])
         item_stop = item.get('stop')
         if item_stop is not None:
             item_stop = periods.instant(item_stop)
-        if item_start < instant and instant < item_stop:
+        if item_start < instant and (item_stop is None or instant < item_stop):
             yield create_item(
                 item['start'],
                 str(instant.offset(-1, 'day')),
@@ -167,7 +184,7 @@ def split_item_containing_instant(instant, items):
                 )
             yield create_item(
                 str(instant),
-                item['stop'],
+                item.get('stop'),
                 item['value']
                 )
         else:
