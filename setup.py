@@ -33,6 +33,9 @@ setup(
         },
     include_package_data = True,  # Will read MANIFEST.in
     install_requires = [
+        # TODO Make separate package to avoid adding dependencies
+        'cma',
+        'sklearn',
         'Babel >= 0.9.4',
         'Biryani[datetimeconv] >= 0.10.4',
         'numpy >= 1.11',
