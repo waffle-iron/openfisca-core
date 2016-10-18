@@ -392,23 +392,6 @@ class AbstractSimulation(object):
             return self.get_reference_compact_legislation(instant)
         return self.get_compact_legislation(instant)
 
-    @staticmethod
-    def cleanup_period_in_json_or_python(value, state=None):
-        if value is None:
-            return None, None
-        value = value.copy()
-        if 'date' not in value:
-            year = value.pop('year', None)
-            if year is not None:
-                value['date'] = year
-        if 'period' not in value:
-            date = value.pop('date', None)
-            if date is not None:
-                value['period'] = dict(
-                    unit=u'year',
-                    start=date,
-                    )
-        return value, None
 
     def make_json_or_python_to_attributes(self, repair=False):
         tbs = self.tax_benefit_system
@@ -422,8 +405,6 @@ class AbstractSimulation(object):
             # First validation and conversion step
             data, error = conv.pipe(
                 conv.test_isinstance(dict),
-                # TODO: Remove condition below, once every calls uses "period" instead of "date" & "year".
-                self.cleanup_period_in_json_or_python,
                 conv.struct(
                     dict(
                         axes=make_json_or_python_to_axes(self.tax_benefit_system),
