@@ -73,7 +73,6 @@ def validate_dated_legislation_json(dated_legislation_json, state = None):
                     conv.not_none,
                     ),
                 ),
-            constructor = collections.OrderedDict,
             default = conv.noop,
             drop_none_values = 'missing',
             keep_value_order = True,
@@ -122,7 +121,6 @@ def validate_dated_node_json(node, state = None):
             'end_line_number': conv.test_isinstance(int),
             'start_line_number': conv.test_isinstance(int),
             },
-        constructor = collections.OrderedDict,
         default = conv.noop,
         drop_none_values = 'missing',
         keep_value_order = True,
@@ -215,7 +213,6 @@ def validate_dated_node_json(node, state = None):
             ))
     validated_node, errors = conv.struct(
         node_converters,
-        constructor = collections.OrderedDict,
         drop_none_values = 'missing',
         keep_value_order = True,
         )(validated_node, state = state)
@@ -260,7 +257,6 @@ def validate_dated_bracket_json(bracket, state = None):
                         ),
                     ),
                 ),
-            constructor = collections.OrderedDict,
             drop_none_values = 'missing',
             keep_value_order = True,
             ),
@@ -361,7 +357,6 @@ def validate_node_json(node, state = None):
             'end_line_number': conv.test_isinstance(int),
             'start_line_number': conv.test_isinstance(int),
             },
-        constructor = collections.OrderedDict,
         default = conv.noop,
         drop_none_values = 'missing',
         keep_value_order = True,
@@ -465,7 +460,6 @@ def validate_node_json(node, state = None):
             ))
     validated_node, errors = conv.struct(
         node_converters,
-        constructor = collections.OrderedDict,
         drop_none_values = 'missing',
         keep_value_order = True,
         )(validated_node, state = state)
@@ -498,7 +492,6 @@ def validate_bracket_json(bracket, state = None):
                     conv.not_none,
                     ),
                 ),
-            constructor = collections.OrderedDict,
             drop_none_values = 'missing',
             keep_value_order = True,
             ),
@@ -736,7 +729,6 @@ def validate_value_json(value, state = None):
                     conv.not_none,
                     ),
                 },
-            constructor = collections.OrderedDict,
             drop_none_values = 'missing',
             keep_value_order = True,
             ),

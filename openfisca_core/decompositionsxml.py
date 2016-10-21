@@ -15,7 +15,7 @@ def N_(message):
 
 def transform_node_xml_json_to_json(node_xml_json, root = True):
     comments = []
-    node_json = collections.OrderedDict()
+    node_json = {}
     if root:
         node_json['@context'] = u'http://openfisca.fr/contexts/decomposition.jsonld'
     node_json['@type'] = 'Node'
@@ -121,7 +121,6 @@ def make_validate_node_xml_json(tax_benefit_system):
                         conv.test_equals(2),
                         ),
                     ),
-                constructor = collections.OrderedDict,
                 drop_none_values = 'missing',
                 keep_value_order = True,
                 ),

@@ -90,7 +90,7 @@ def test_has_fuzzy_or_fin(value, state = None):
 
 
 def translate_xml_element_to_json_item(xml_element):
-    json_element = collections.OrderedDict()
+    json_element = {}
     text = xml_element.text
     if text is not None:
         text = text.strip().strip('#').strip() or None
@@ -119,7 +119,7 @@ def translate_xml_element_to_json_item(xml_element):
 
 def transform_node_xml_json_to_json(node_xml_json, root = True):
     comments = []
-    node_json = collections.OrderedDict()
+    node_json = {}
     if root:
         node_json['@context'] = u'http://openfisca.fr/contexts/legislation.jsonld'
     node_json['@type'] = 'Node'
@@ -147,7 +147,7 @@ def transform_node_xml_json_to_json(node_xml_json, root = True):
             comments.append(value)
         else:
             node_json[key] = value
-    node_json['children'] = collections.OrderedDict(sorted(child_json_by_code.iteritems()))
+    node_json['children'] = dict(sorted(child_json_by_code.iteritems()))
     if comments:
         node_json['comment'] = u'\n\n'.join(comments)
     return node_xml_json['code'], node_json
@@ -155,7 +155,7 @@ def transform_node_xml_json_to_json(node_xml_json, root = True):
 
 def transform_parameter_xml_json_to_json(parameter_xml_json):
     comments = []
-    parameter_json = collections.OrderedDict()
+    parameter_json = {}
     parameter_json['@type'] = 'Parameter'
     xml_json_value_to_json_transformer = float
 
@@ -194,7 +194,7 @@ def transform_parameter_xml_json_to_json(parameter_xml_json):
 
 def transform_scale_xml_json_to_json(scale_xml_json):
     comments = []
-    scale_json = collections.OrderedDict()
+    scale_json = {}
     scale_json['@type'] = 'Scale'
     for key, value in scale_xml_json.iteritems():
         if key == 'code':
@@ -217,7 +217,7 @@ def transform_scale_xml_json_to_json(scale_xml_json):
 
 def transform_bracket_xml_json_to_json(bracket_xml_json):
     comments = []
-    bracket_json = collections.OrderedDict()
+    bracket_json = {}
     for key, value in bracket_xml_json.iteritems():
         if key == 'ASSIETTE':
             bracket_json['base'] = transform_values_holder_xml_json_to_json(value[0])
@@ -241,7 +241,7 @@ def transform_bracket_xml_json_to_json(bracket_xml_json):
 
 def transform_value_xml_json_to_json(value_xml_json, xml_json_value_to_json_transformer):
     comments = []
-    value_json = collections.OrderedDict()
+    value_json = {}
     for key, value in value_xml_json.iteritems():
         assert key not in ('code', 'format', 'type')
         if key == 'deb':
@@ -330,7 +330,6 @@ def validate_bracket_xml_json(bracket, state = None):
                     conv.cleanup_text,
                     ),
                 ),
-            constructor = collections.OrderedDict,
             drop_none_values = 'missing',
             keep_value_order = True,
             ),
@@ -564,7 +563,6 @@ def validate_node_xml_json(node, state = None):
                     ),
                 xml_file_path = conv.test_isinstance(basestring),
                 ),
-            constructor = collections.OrderedDict,
             drop_none_values = 'missing',
             keep_value_order = True,
             ),
@@ -655,7 +653,6 @@ def validate_parameter_xml_json(parameter, state = None):
                     ),
                 xml_file_path = conv.test_isinstance(basestring),
                 ),
-            constructor = collections.OrderedDict,
             drop_none_values = 'missing',
             keep_value_order = True,
             ),
@@ -720,7 +717,6 @@ def validate_scale_xml_json(scale, state = None):
                     ),
                 xml_file_path = conv.test_isinstance(basestring),
                 ),
-            constructor = collections.OrderedDict,
             drop_none_values = 'missing',
             keep_value_order = True,
             ),
@@ -793,7 +789,6 @@ def validate_value_xml_json(value, state = None):
                     ),
                 xml_file_path = conv.test_isinstance(basestring),
                 ),
-            constructor = collections.OrderedDict,
             drop_none_values = 'missing',
             keep_value_order = True,
             ),
@@ -849,7 +844,6 @@ validate_values_holder_xml_json = conv.struct(
             ),
         xml_file_path = conv.test_isinstance(basestring),
         ),
-    constructor = collections.OrderedDict,
     drop_none_values = 'missing',
     keep_value_order = True,
     )
@@ -898,6 +892,14 @@ def make_xml_legislation_info_list_to_xml_elements_and_paths(with_source_file_in
         )
 
 
+def str_to_xml_legislation(value, state = None):
+    try:
+        xml_legislation = xml.etree.ElementTree.fromstring(value)
+    except xml.etree.ElementTree.ParseError as error:
+        return value, unicode(error)
+    return xml_legislation, None
+
+
 def xml_legislation_to_json(xml_element, state = None):
     if xml_element is None:
         return None, None
@@ -927,3 +929,18 @@ def make_xml_legislation_info_list_to_json(with_source_file_infos):
         validate_legislation_xml_json,
         conv.function(lambda value: transform_node_xml_json_to_json(value)[1]),
         )
+
+
+# Functions calling converters
+
+def load_code_and_json_from_xml_string(string):
+    '''Return a tuple like (code, node_json) where code is the value of XML attribute "code" of the node.'''
+    state = conv.default_state
+    return conv.check(
+        conv.pipe(
+            str_to_xml_legislation,
+            xml_legislation_to_json,
+            validate_legislation_xml_json,
+            conv.function(lambda value: transform_node_xml_json_to_json(value, root=False)),
+            )
+        )(string, state)

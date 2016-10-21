@@ -27,10 +27,8 @@ class VariableNameConflict(Exception):
 
 class TaxBenefitSystem(object):
     _base_tax_benefit_system = None
-    compact_legislation_by_instant_cache = None
     entity_class_by_key_plural = None
     person_key_plural = None
-    preprocess_legislation = None
     json_to_attributes = staticmethod(conv.pipe(
         conv.test_isinstance(dict),
         conv.struct({}),
@@ -42,14 +40,14 @@ class TaxBenefitSystem(object):
 
     def __init__(self, entities, legislation_json = None):
         # TODO: Currently: Don't use a weakref, because they are cleared by Paste (at least) at each call.
-        self.compact_legislation_by_instant_cache = {}  # weakref.WeakValueDictionary()
         self.column_by_name = collections.OrderedDict()
         self.automatically_loaded_variable = set()
         self.legislation_xml_info_list = []
         self._legislation_json = legislation_json
+        self.legislation_node_by_instant_cache = {}  # weakref.WeakValueDictionary()
 
         if entities is None or len(entities) == 0:
-            raise Exception("A tax benefit sytem must have at least an entity.")
+            raise ValueError("A tax benefit sytem must have at least an entity.")
         self.entity_class_by_key_plural = {
             entity_class.key_plural: entity_class
             for entity_class in entities
@@ -65,27 +63,57 @@ class TaxBenefitSystem(object):
             self._base_tax_benefit_system = base_tax_benefit_system = reference.base_tax_benefit_system
         return base_tax_benefit_system
 
-    def get_compact_legislation(self, instant, traced_simulation = None):
-        legislation = self.get_legislation()
+    # Legislation methods
+
+    def legislation_at(self, instant, traced_simulation=None):
+        legislation_json = self.get_legislation_json()
+        assert legislation_json is not None
         if traced_simulation is None:
-            compact_legislation = self.compact_legislation_by_instant_cache.get(instant)
-            if compact_legislation is None and legislation is not None:
-                dated_legislation_json = legislations.generate_dated_legislation_json(legislation, instant)
-                compact_legislation = legislations.compact_dated_node_json(dated_legislation_json)
-                self.compact_legislation_by_instant_cache[instant] = compact_legislation
+            legislation_node = self.legislation_node_by_instant_cache.get(instant)
+            if legislation_node is None:
+                legislation_json_at_instant = legislations.at_instant.generate_legislation_json_at_instant(
+                    legislation_json, instant)
+                legislation_node = legislations.at_instant.node_json_at_instant_to_objects(legislation_json_at_instant)
+                self.legislation_node_by_instant_cache[instant] = legislation_node
         else:
-            dated_legislation_json = legislations.generate_dated_legislation_json(legislation, instant)
-            compact_legislation = legislations.compact_dated_node_json(
-                dated_legislation_json,
+            legislation_json_at_instant = legislations.generate_legislation_json_at_instant(legislation_json, instant)
+            legislation_node = legislations.node_json_at_instant_to_objects(
+                legislation_json_at_instant,
                 traced_simulation = traced_simulation,
                 )
-        return compact_legislation
+        return legislation_node
 
-    def get_reference_compact_legislation(self, instant, traced_simulation = None):
-        reference = self.reference
-        if reference is None:
-            return self.get_compact_legislation(instant, traced_simulation = traced_simulation)
-        return reference.get_reference_compact_legislation(instant, traced_simulation = traced_simulation)
+    def get_legislation_json(self):
+        if self._legislation_json is None:
+            self._legislation_json = self.load_legislation_from_xml()
+        return self._legislation_json
+
+    def add_legislation_params(self, path_to_xml_file, path_in_legislation_tree=None):
+        if path_in_legislation_tree is not None:
+            if isinstance(path_in_legislation_tree, basestring):
+                path_in_legislation_tree = path_in_legislation_tree.split('.')
+        self.legislation_xml_info_list.append((path_to_xml_file, path_in_legislation_tree))
+        # New parameters have been added, the legislation will have to be recomputed next time we need it.
+        # Not very optimized, but today incremental building of the legislation is not implemented.
+        self._legislation_json = None
+
+    def load_legislation_from_xml(self, with_source_file_infos = False):
+        state = conv.default_state
+        xml_legislation_info_list_to_json = legislationsxml.make_xml_legislation_info_list_to_json(
+            with_source_file_infos,
+            )
+        legislation_json = conv.check(xml_legislation_info_list_to_json)(self.legislation_xml_info_list, state = state)
+        if self.preprocess_legislation is not None:
+            legislation_json = self.preprocess_legislation(legislation_json)
+        return legislation_json
+
+    def preprocess_legislation(self, legislation_json):
+        '''
+        This method can be overloaded by countries inheriting TaxBenefitSystem.
+        Its purpose is to allow enhancing the `legislation_json` for example to load parameter from other
+        sources than the XML files, like CSV files for example.
+        '''
+        return legislation_json
 
     @classmethod
     def json_to_instance(cls, value, state = None):

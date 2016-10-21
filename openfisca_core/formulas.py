@@ -11,7 +11,7 @@ import logging
 
 import numpy as np
 
-from . import columns, holders, legislations, periods
+from . import columns, holders, periods
 from .base_functions import (
     permanent_default_value,
     requested_period_default_value_neutralized,
@@ -19,6 +19,7 @@ from .base_functions import (
     requested_period_last_or_next_value,
     requested_period_last_value,
     )
+from .exceptions import ParameterNotFound
 from .tools import empty_clone, stringify_array
 
 
@@ -555,9 +556,9 @@ class SimpleFormula(AbstractFormula):
                 raise
             simulation.max_nb_cycles = None
             return holder.put_in_cache(self.default_values(), period, extra_params)
-        except legislations.ParameterNotFound as exc:
+        except ParameterNotFound as exc:
             if exc.variable_name is None:
-                raise legislations.ParameterNotFound(
+                raise ParameterNotFound(
                     instant = exc.instant,
                     name = exc.name,
                     variable_name = column.name,

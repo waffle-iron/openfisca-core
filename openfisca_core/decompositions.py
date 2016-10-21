@@ -6,7 +6,8 @@ import copy
 import os
 import xml
 
-from . import conv, decompositionsxml, legislations
+from . import conv, decompositionsxml
+from .exceptions import ParameterNotFound
 
 
 def calculate(simulations, decomposition_json):
@@ -23,7 +24,7 @@ def calculate(simulations, decomposition_json):
             for simulation_index, simulation in enumerate(simulations):
                 try:
                     simulation.calculate_output(node['code'])
-                except legislations.ParameterNotFound as exc:
+                except ParameterNotFound as exc:
                     exc.simulation_index = simulation_index
                     raise
                 holder = simulation.get_holder(node['code'])
@@ -98,7 +99,6 @@ def make_validate_node_json(tax_benefit_system):
                                 conv.cleanup_line,
                                 ),
                             ),
-                        constructor = collections.OrderedDict,
                         default = conv.noop,
                         drop_none_values = 'missing',
                         keep_value_order = True,

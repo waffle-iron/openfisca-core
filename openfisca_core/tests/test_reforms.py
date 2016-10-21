@@ -2,10 +2,10 @@
 
 import datetime
 
-from nose.tools import raises
+from nose.tools import assert_equal, raises
 
 from .. import columns, periods
-from ..reforms import Reform, compose_reforms
+from ..reforms import Reform, compose_reforms, replace_scale_rate
 from ..formulas import dated_function
 from ..variables import Variable, DatedVariable
 from ..tools import assert_near
@@ -219,33 +219,53 @@ def test_compose_reforms():
     assert_near(nouvelle_variable1, 20, absolute_error_margin = 0)
 
 
-def test_modify_legislation():
-
-    def modify_legislation_json(reference_legislation_json_copy):
-        reform_legislation_subtree = {
-            "@type": "Node",
-            "description": "Node added to the legislation by the reform",
-            "children": {
-                "new_param": {
-                    "@type": "Parameter",
-                    "description": "New parameter",
-                    "format": "boolean",
-                    "values": [{'start': u'2000-01-01', 'stop': u'2014-12-31', 'value': True}],
-                    },
-                },
-            }
-        reference_legislation_json_copy['children']['new_node'] = reform_legislation_subtree
-        return reference_legislation_json_copy
-
-    class test_modify_legislation(Reform):
+def test_add_xml_node_to_legislation_root():
+    class parametric_reform_1(Reform):
         def apply(self):
-            self.modify_legislation_json(modifier_function = modify_legislation_json)
+            self.legislation.add('''
+                <NODE code="new_node" description="Node added to the legislation by the reform">
+                    <CODE code="new_param" description="New parameter">
+                        <VALUE deb="2000-01-01" fin="2014-12-31" valeur="999" />
+                    </CODE>
+                </NODE>
+                ''')
+    reform = parametric_reform_1(tax_benefit_system)
+    assert_equal(reform.legislation_at('2010-01-01').new_node.new_param, 999)
+    print(reform.legislation_at('2010-01-01').new_node)
 
-    reform = test_modify_legislation(tax_benefit_system)
 
-    legislation_new_node = reform.get_legislation()['children']['new_node']
-    assert legislation_new_node is not None
+def test_add_xml_node_to_legislation_child_node():
+    class parametric_reform_1(Reform):
+        def apply(self):
+            self.legislation.add('''
+                <NODE code="new_node" description="Node added to the legislation by the reform">
+                    <CODE code="new_param" description="New parameter">
+                        <VALUE deb="2000-01-01" fin="2014-12-31" valeur="999" />
+                    </CODE>
+                </NODE>
+                ''')
+    reform = parametric_reform_1(tax_benefit_system)
+    assert_equal(reform.legislation_at('2010-01-01').new_node.new_param, 999)
+    a = reform.legislation_at('2010-01-01').new_node
+    import ipdb; ipdb.set_trace()
 
-    instant = periods.instant((2013, 1, 1))
-    compact_legislation = reform.get_compact_legislation(instant)
-    assert compact_legislation.new_node.new_param is True
+
+
+
+def test_replace_scale_rate():
+    period = periods.period('2005:6')
+    legislation_updater = tax_benefit_system.update_legislation_between(period.start, period.stop)
+    legislation_updater.csg.activite.deductible.abattement.bracket(0).rate = 0.999
+
+
+@raises(ValueError)
+def test_replace_scale_rate_with_no_match():
+    abattement = tax_benefit_system.legislation_at(path='csg.activite.deductible.abattement')
+    replace_scale_rate(abattement, period=2010, new_rate=0.999, bracket_index=0)
+
+
+@raises(TypeError)
+def test_replace_scale_rate_with_wrong_type():
+    abattement = tax_benefit_system.legislation_at(path='csg.activite.deductible')
+    replace_scale_rate(abattement, period=2010, new_rate=0.999, bracket_index=0)
+

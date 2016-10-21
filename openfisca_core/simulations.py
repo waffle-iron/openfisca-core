@@ -10,14 +10,13 @@ from .tools import empty_clone, stringify_array
 
 
 class Simulation(object):
-    compact_legislation_by_instant_cache = None
+    legislation_node_by_instant_cache = None
     debug = False
     debug_all = False  # When False, log only formula calls with non-default parameters.
     entity_by_key_plural = None
     entity_by_key_singular = None
     period = None
     persons = None
-    reference_compact_legislation_by_instant_cache = None
     stack_trace = None
     steps_count = 1
     tax_benefit_system = None
@@ -25,7 +24,7 @@ class Simulation(object):
     traceback = None
 
     def __init__(self, debug = False, debug_all = False, period = None, tax_benefit_system = None,
-    trace = False, opt_out_cache = False):
+                 trace = False, opt_out_cache = False):
         assert isinstance(period, periods.Period)
         self.period = period
         self.holder_by_name = {}
@@ -51,8 +50,7 @@ class Simulation(object):
             self.traceback = collections.OrderedDict()
 
         # Note: Since simulations are short-lived and must be fast, don't use weakrefs for cache.
-        self.compact_legislation_by_instant_cache = {}
-        self.reference_compact_legislation_by_instant_cache = {}
+        self.legislation_node_by_instant_cache = {}
 
         entity_class_by_key_plural = tax_benefit_system.entity_class_by_key_plural
         self.entity_by_key_plural = entity_by_key_plural = dict(
@@ -216,14 +214,15 @@ class Simulation(object):
                 caller_input_variables_infos.append(variable_infos)
         return self.get_or_new_holder(column_name).get_array(period)
 
-    def get_compact_legislation(self, instant):
-        compact_legislation = self.compact_legislation_by_instant_cache.get(instant)
+    def legislation_at(self, instant):
+        assert isinstance(instant, periods.Instant), "Expected an instant. Got: {}".format(instant)
+        compact_legislation = self.legislation_node_by_instant_cache.get(instant)
         if compact_legislation is None:
-            compact_legislation = self.tax_benefit_system.get_compact_legislation(
+            compact_legislation = self.tax_benefit_system.legislation_at(
                 instant = instant,
                 traced_simulation = self if self.trace else None,
                 )
-            self.compact_legislation_by_instant_cache[instant] = compact_legislation
+            self.legislation_node_by_instant_cache[instant] = compact_legislation
         return compact_legislation
 
     def get_holder(self, column_name, default = UnboundLocalError):
@@ -240,16 +239,6 @@ class Simulation(object):
             if column.formula_class is not None:
                 holder.formula = column.formula_class(holder = holder)
         return holder
-
-    def get_reference_compact_legislation(self, instant):
-        reference_compact_legislation = self.reference_compact_legislation_by_instant_cache.get(instant)
-        if reference_compact_legislation is None:
-            reference_compact_legislation = self.tax_benefit_system.get_reference_compact_legislation(
-                instant = instant,
-                traced_simulation = self if self.trace else None,
-                )
-            self.reference_compact_legislation_by_instant_cache[instant] = reference_compact_legislation
-        return reference_compact_legislation
 
     def graph(self, column_name, edges, get_input_variables_and_parameters, nodes, visited):
         self.get_or_new_holder(column_name).graph(edges, get_input_variables_and_parameters, nodes, visited)
