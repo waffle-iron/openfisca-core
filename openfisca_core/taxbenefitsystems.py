@@ -1,11 +1,5 @@
 # -*- coding: utf-8 -*-
 
-"""
-TaxBenefitSystem : loads variable classes from coutry-level code.
-
-"""
-
-
 
 import itertools
 import collections
@@ -22,8 +16,7 @@ import datetime
 from biryani import strings
 
 from . import conv, legislations, legislationsxml, base_functions, periods
-from .variables import Variable, DatedVariable, PersonToEntityColumn, EntityToPersonColumn
-
+from .variables import Variable, PersonToEntityColumn, EntityToPersonColumn
 
 
 class VariableNameConflict(Exception):
@@ -31,6 +24,9 @@ class VariableNameConflict(Exception):
 
 
 class TaxBenefitSystem(object):
+    """
+    Loads variable classes from country-level code.
+    """
     compact_legislation_by_instant_cache = None
     preprocess_legislation = None
     person_key_plural = None
@@ -42,16 +38,14 @@ class TaxBenefitSystem(object):
 
     def __init__(self, entities, legislation_json=None):
         # TODO: Currently: Don't use a weakref, because they are cleared by Paste (at least) at each call.
+        assert isinstance(entities, list) and len(entities) > 0, "A TaxBenefitSystem must have at least an entity."
+        self.entities = entities
         self.compact_legislation_by_instant_cache = {}  # weakref.WeakValueDictionary()
         self.variable_class_by_name = collections.OrderedDict()
         self.automatically_loaded_variable = set()
         self.legislation_xml_info_list = []
         self._legislation_json = legislation_json
-
-        if entities is None or len(entities) == 0:
-            raise Exception("A tax benefit sytem must have at least an entity.")
-        self.entities = entities
-        self.loaded_recursively = []    # variable classes loaded because of a EntityToEntityColumn referencing it. Remove in future versions.
+        self.loaded_recursively = []  # variable classes loaded because of a EntityToEntityColumn referencing it. Remove in future versions.
 
     @property
     def base_tax_benefit_system(self):
@@ -63,128 +57,97 @@ class TaxBenefitSystem(object):
             self._base_tax_benefit_system = base_tax_benefit_system = reference.base_tax_benefit_system
         return base_tax_benefit_system
 
-    def get_compact_legislation(self, instant, traced_simulation = None):
-        legislation = self.get_legislation()
-        if traced_simulation is None:
-            compact_legislation = self.compact_legislation_by_instant_cache.get(instant)
-            if compact_legislation is None and legislation is not None:
-                dated_legislation_json = legislations.generate_dated_legislation_json(legislation, instant)
-                compact_legislation = legislations.compact_dated_node_json(dated_legislation_json)
-                self.compact_legislation_by_instant_cache[instant] = compact_legislation
-        else:
-            dated_legislation_json = legislations.generate_dated_legislation_json(legislation, instant)
-            compact_legislation = legislations.compact_dated_node_json(
-                dated_legislation_json,
-                traced_simulation = traced_simulation,
-                )
-        return compact_legislation
+    def get_variable_class(self, variable_class_name):
+        variable_class = self.variable_class_by_name.get(variable_class_name)
+        return variable_class
 
-    def get_reference_compact_legislation(self, instant, traced_simulation = None):
-        reference = self.reference
-        if reference is None:
-            return self.get_compact_legislation(instant, traced_simulation = traced_simulation)
-        return reference.get_reference_compact_legislation(instant, traced_simulation = traced_simulation)
+    # Variable loading methods
 
     def load_variable_class(self, variable_class, update=False):
-        name = unicode(variable_class.__name__)
+        name = variable_class.__name__
 
         if name in self.loaded_recursively:
             self.loaded_recursively.remove(name)
             return
 
         existing_variable_class = self.get_variable_class(name)
-
         if existing_variable_class and not update:
-            raise VariableNameConflict(
-                "Variable {} is already defined.".format(name))
-
+            raise VariableNameConflict("Variable {} is already defined.".format(name))
         if existing_variable_class and update:
             variable_class.reference = existing_variable_class
 
-        # TODO Replace setattr and hasattr by None attributes and assignments
+        variable_class.base_class = variable_class.__bases__[0]
 
-        setattr(variable_class, 'name', name)
-        setattr(variable_class, 'base_class', variable_class.__bases__[0])
-
-        # column member
-        if hasattr(variable_class, 'column'):
-            # instantiate the column if not already done
+        if variable_class.column is not None:
+            # Instantiate the column if not already done
             if inspect.isclass(variable_class.column):
-                setattr(variable_class, 'column', variable_class.column())
+                # TODO
+                variable_class.column = variable_class.column()
 
-            if variable_class.column.__class__.__name__ == 'BoolCol':
-                setattr(variable_class, 'default', False)
-                setattr(variable_class, 'dtype', np.bool)
-                setattr(variable_class, 'is_period_size_independent', True)
-                setattr(variable_class, 'json_type', 'Boolean')
-            elif variable_class.column.__class__.__name__ == 'DateCol':
-                setattr(variable_class, 'dtype', 'datetime64[D]')
-                setattr(variable_class, 'is_period_size_independent', True)
-                setattr(variable_class, 'json_type', 'Date')
-                setattr(variable_class, 'val_type', 'date')
-            elif variable_class.column.__class__.__name__ == 'FixedStrCol':
-                setattr(variable_class, 'default', u'')
-                setattr(variable_class, 'is_period_size_independent', True)
-                setattr(variable_class, 'json_type', 'String')
-                max_length = variable_class.column.get_params().get('max_length')
-                setattr(variable_class, 'dtype', '|S{}'.format(max_length))
+            column_class_name = variable_class.column.__class__.__name__
 
-            elif variable_class.column.__class__.__name__ == 'FloatCol':
-                setattr(variable_class, 'dtype', np.float32)
-                setattr(variable_class, 'json_type', 'Float')
-            elif variable_class.column.__class__.__name__ == 'IntCol':
-                setattr(variable_class, 'dtype', np.int32)
-                setattr(variable_class, 'json_type', 'Integer')
-            elif variable_class.column.__class__.__name__ == 'StrCol':
-                setattr(variable_class, 'default', u'')
-                setattr(variable_class, 'dtype', object)
-                setattr(variable_class, 'is_period_size_independent', True)
-                setattr(variable_class, 'json_type', 'String')
-            elif variable_class.column.__class__.__name__ == 'AgeCol':
-                setattr(variable_class, 'default', -9999)
-                setattr(variable_class, 'is_period_size_independent', True)
-            elif variable_class.column.__class__.__name__ == 'EnumCol':
-                setattr(variable_class, 'dtype', np.int16)
-                setattr(variable_class, 'enum', None)
-                setattr(variable_class, 'index_by_slug', None)
-                setattr(variable_class, 'is_period_size_independent', True)
-                setattr(variable_class, 'json_type', 'Enumeration')
-
-            for k, v in variable_class.column.get_params().items():
-                setattr(variable_class, k, v)
-            if hasattr(variable_class, 'start_date'):
-                setattr(variable_class, 'start', periods.instant(variable_class.start_date))
-            if hasattr(variable_class, 'stop_date'):
-                setattr(variable_class, 'end', periods.instant(variable_class.stop_date))
-            assert not hasattr(variable_class, 'column_type')
-            setattr(variable_class, 'column_type', variable_class.column.__class__.__name__)
-            delattr(variable_class, 'column')
-
-            # enum (if present in column)
-            if hasattr(variable_class, 'enum'):
-                if variable_class.enum is None:
-                    delattr(variable_class, 'enum')
-                else:
-                    # This converters accepts either an item number or an item name.
-                    setattr(variable_class, 'index_by_slug', dict(
-                        (strings.slugify(name), index)
+            if column_class_name == 'BoolCol':
+                variable_class.default = False
+                variable_class.dtype = np.bool
+                variable_class.is_period_size_independent = True
+                variable_class.json_type = 'Boolean'
+            elif column_class_name == 'DateCol':
+                variable_class.dtype = 'datetime64[D]'
+                variable_class.is_period_size_independent = True
+                variable_class.json_type = 'Date'
+                variable_class.val_type = 'date'
+            elif column_class_name == 'FixedStrCol':
+                variable_class.default = u''
+                variable_class.is_period_size_independent = True
+                variable_class.json_type = 'String'
+                variable_class.dtype = '|S{}'.format(variable_class.column.params.get('max_length'))
+            elif column_class_name == 'FloatCol':
+                variable_class.dtype = np.float32
+                variable_class.json_type = 'Float'
+            elif column_class_name == 'IntCol':
+                variable_class.dtype = np.int32
+                variable_class.json_type = 'Integer'
+            elif column_class_name == 'StrCol':
+                variable_class.default = u''
+                variable_class.dtype = object
+                variable_class.is_period_size_independent = True
+                variable_class.json_type = 'String'
+            elif column_class_name == 'AgeCol':
+                # TODO Use int min value?
+                variable_class.default = -9999
+                variable_class.is_period_size_independent = True
+            elif column_class_name == 'EnumCol':
+                variable_class.dtype = np.int16
+                if variable_class.enum is not None:
+                    # This converter accepts either an item number or an item name.
+                    variable_class.index_by_slug = {
+                        strings.slugify(name): index
                         for index, name in sorted(variable_class.enum._vars.iteritems())
-                        ))
+                        }
+                variable_class.is_period_size_independent = True
+                variable_class.json_type = 'Enumeration'
 
+            for k, v in variable_class.column.params.items():
+                setattr(variable_class, k, v)
+
+            if variable_class.start_date is not None:
+                variable_class.start = periods.instant(variable_class.start_date)
+            if variable_class.stop_date is not None:
+                variable_class.end = periods.instant(variable_class.stop_date)
         else:
-            assert variable_class.base_class in [PersonToEntityColumn, EntityToPersonColumn]
-            if variable_class.variable.__name__ not in self.variable_class_by_name:
+            assert variable_class.base_class in [PersonToEntityColumn, EntityToPersonColumn], variable_class
+            if variable_class.variable.name not in self.variable_class_by_name:
                 self.load_variable_class(variable_class.variable)
-                self.loaded_recursively.append(variable_class.variable.__name__)
+                self.loaded_recursively.append(variable_class.variable.name)
 
-            original_variable = self.variable_class_by_name[variable_class.variable.__name__]
+            original_variable = self.variable_class_by_name[variable_class.variable.name]
 
-            for attr in ['dtype', 'default', 'is_period_size_independent', 'json_type', 'val_type', 'enum', 'index_by_slug', 'start', 'end', 'column_type']:
+            for attr in ['dtype', 'default', 'is_period_size_independent', 'json_type', 'val_type', 'enum',
+                    'index_by_slug', 'start', 'end', 'column']:
                 if not hasattr(variable_class, attr) and hasattr(original_variable, attr):
                     setattr(variable_class, attr, getattr(original_variable, attr))
 
-            setattr(variable_class, 'original_variable', original_variable)
-            delattr(variable_class, 'variable')
+            variable_class.original_variable = original_variable
 
         if not hasattr(variable_class, 'cerfa_field'):
             setattr(variable_class, 'cerfa_field', None)
@@ -228,7 +191,6 @@ class TaxBenefitSystem(object):
         if not hasattr(variable_class, 'operation'):    # For entity to entity variables
             setattr(variable_class, 'operation', None)
 
-
         # define base function
         if variable_class.base_function is None:
             if variable_class.is_permanent:
@@ -263,8 +225,8 @@ class TaxBenefitSystem(object):
                 start_instant=start_instant,
                 stop_instant=stop_instant,
                 ))
-        #delattr(variable_class, 'start')
-        #delattr(variable_class, 'end')
+        # delattr(variable_class, 'start')
+        # delattr(variable_class, 'end')
         # Sort dated formulas by start instant and add missing stop instants.
         functions.sort(key=lambda function: function['start_instant'] or periods.instant(datetime.date.min))
         for function, next_function in itertools.izip(functions,
@@ -281,19 +243,22 @@ class TaxBenefitSystem(object):
         return variable_class
 
     def add_variable_class(self, variable_class):
-        return self.load_variable_class(variable_class, update = False)
+        return self.load_variable_class(variable_class, update=False)
+
+    def add_variable_classes(self, *variable_classes):
+        for variable_class in variable_classes:
+            self.add_variable_class(variable_class)
 
     def add_variable_classes_from_file(self, file):
         module_name = path.splitext(path.basename(file))[0]
         module_directory = path.dirname(file)
         module = load_module(module_name, *find_module(module_name, [module_directory]))
-
-        potential_variable_classes = [getattr(module, c) for c in dir(module) if not c.startswith('__')]
-        for pot_variable_class in potential_variable_classes:
+        candidate_variable_classes = [getattr(module, c) for c in dir(module) if not c.startswith('__')]
+        for pot_variable_class in candidate_variable_classes:
             # We only want to get the module classes defined in this module (not imported)
-            if ((isclass(pot_variable_class) and
-                 issubclass(pot_variable_class, Variable) and
-                 pot_variable_class.__module__.endswith(module_name))):
+            if isclass(pot_variable_class) and \
+                    issubclass(pot_variable_class, Variable) and \
+                    pot_variable_class.__module__.endswith(module_name):
                 self.add_variable_class(pot_variable_class)
 
     def add_variable_classes_from_directory(self, directory):
@@ -304,10 +269,6 @@ class TaxBenefitSystem(object):
         for subdirectory in subdirectories:
             self.add_variable_classes_from_directory(subdirectory)
 
-    def add_variable_classes(self, *variable_classes):
-        for variable_class in variable_classes:
-            self.add_variable_class(variable_class)
-
     def load_extension(self, extension_directory):
         if not path.isdir(extension_directory):
             raise IOError(
@@ -317,14 +278,11 @@ class TaxBenefitSystem(object):
         if path.isfile(param_file):
             self.add_legislation_params(param_file)
 
-    def get_variable_class(self, variable_class_name):
-        variable_class = self.variable_class_by_name.get(variable_class_name)
-        return variable_class
+    # Legislation methods
 
     def add_legislation_params(self, path_to_xml_file, path_in_legislation_tree = None):
         if path_in_legislation_tree is not None:
             path_in_legislation_tree = path_in_legislation_tree.split('.')
-
         self.legislation_xml_info_list.append(
             (path_to_xml_file, path_in_legislation_tree)
             )
@@ -346,3 +304,25 @@ class TaxBenefitSystem(object):
         if self._legislation_json is None:
             self.compute_legislation()
         return self._legislation_json
+
+    def get_compact_legislation(self, instant, traced_simulation = None):
+        legislation = self.get_legislation()
+        if traced_simulation is None:
+            compact_legislation = self.compact_legislation_by_instant_cache.get(instant)
+            if compact_legislation is None and legislation is not None:
+                dated_legislation_json = legislations.generate_dated_legislation_json(legislation, instant)
+                compact_legislation = legislations.compact_dated_node_json(dated_legislation_json)
+                self.compact_legislation_by_instant_cache[instant] = compact_legislation
+        else:
+            dated_legislation_json = legislations.generate_dated_legislation_json(legislation, instant)
+            compact_legislation = legislations.compact_dated_node_json(
+                dated_legislation_json,
+                traced_simulation = traced_simulation,
+                )
+        return compact_legislation
+
+    def get_reference_compact_legislation(self, instant, traced_simulation = None):
+        reference = self.reference
+        if reference is None:
+            return self.get_compact_legislation(instant, traced_simulation = traced_simulation)
+        return reference.get_reference_compact_legislation(instant, traced_simulation = traced_simulation)

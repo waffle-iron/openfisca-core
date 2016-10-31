@@ -143,4 +143,5 @@ def missing_value(variable, simulation, period, extra_params):
         assert(len(variable.functions) == 1)
         function = variable.functions[0]['function']
         return call_with_extra_params(function, variable, simulation, period, extra_params)
-    raise ValueError(u"Missing value for variable {} at {}".format(variable.name, period))
+    # TODO Test variable.name or variable.__name__
+    raise ValueError(u"Missing value for variable {} at {}".format(variable.__name__, period))

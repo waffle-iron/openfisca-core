@@ -6,17 +6,18 @@ import os
 import pkg_resources
 from os import path
 
-from openfisca_core import conv
-from openfisca_core.columns import IntCol
-from openfisca_core.variables import Variable
-from openfisca_core.simulations import AbstractSimulation, set_entities_json_id
-from openfisca_core.taxbenefitsystems import TaxBenefitSystem
+from .. import conv, simulations
+from ..columns import IntCol
+from ..variables import Variable
+from ..taxbenefitsystems import TaxBenefitSystem
 
 
 openfisca_core_dir = pkg_resources.get_distribution('OpenFisca-Core').location
 TEST_DIRECTORY = path.dirname(path.abspath(__file__))
 
+
 # Entities
+
 
 def iter_member_persons_role_and_id(member):
     role = 0
@@ -51,8 +52,7 @@ Familles = frozenset([
         ])),
     ('symbol', 'fam'),
     ('iter_member_persons_role_and_id', iter_member_persons_role_and_id),
-])
-
+    ])
 
 
 Individus = frozenset([
@@ -63,7 +63,7 @@ Individus = frozenset([
     ('key_singular', 'individu'),
     ('label', u'Personne'),
     ('symbol', 'ind'),
-])
+    ])
 
 
 # Mandatory input variables
@@ -82,17 +82,17 @@ class role_dans_famille(Variable):
     is_permanent = True
     label = u"Rôle dans la famille"
 
+
 # Simulation
 
 
-class Simulation(AbstractSimulation):
-    def __init__(self, tbs, axes=None, enfants=None, famille=None, parent1=None, parent2=None,
-            period=None, attributes=None):
-        self.tax_benefit_system = tbs
+class Simulation(simulations.Simulation):
+    def __init__(self, tax_benefit_system, period, axes=None, enfants=None, famille=None, parent1=None, parent2=None,
+            attributes=None):
+        super(Simulation, self).__init__(tax_benefit_system, period)
 
         if attributes is not None:
             conv.check(self.make_json_or_python_to_attributes(repair=False))(attributes)
-
             self.instantiate_variables()
             return
 
@@ -121,7 +121,6 @@ class Simulation(AbstractSimulation):
                 individus=individus,
                 ),
             ))
-
         self.instantiate_variables()
 
     def make_json_or_python_to_test_case(self, period=None, repair=False):
@@ -147,7 +146,7 @@ class Simulation(AbstractSimulation):
                                 conv.test_isinstance(dict),
                                 drop_none_items=True,
                                 ),
-                            conv.function(set_entities_json_id),
+                            conv.function(simulations.set_entities_json_id),
                             conv.uniform_sequence(
                                 conv.struct(
                                     dict(itertools.chain(
@@ -176,7 +175,8 @@ class Simulation(AbstractSimulation):
                                         (
                                             (variable_class.__name__, variable_class.json_to_python())
                                             for variable_class in variable_class_by_name.itervalues()
-                                            if variable_class.entity is Familles and hasattr(variable_class, 'column_type')
+                                            if variable_class.entity is Familles and
+                                                hasattr(variable_class, 'column')
                                             ),
                                         )),
                                     drop_none_values=True,
@@ -192,7 +192,7 @@ class Simulation(AbstractSimulation):
                                 conv.test_isinstance(dict),
                                 drop_none_items=True,
                                 ),
-                            conv.function(set_entities_json_id),
+                            conv.function(simulations.set_entities_json_id),
                             conv.uniform_sequence(
                                 conv.struct(
                                     dict(itertools.chain(
@@ -205,8 +205,10 @@ class Simulation(AbstractSimulation):
                                         (
                                             (variable_class.__name__, variable_class.json_to_python())
                                             for variable_class in variable_class_by_name.itervalues()
-                                            if variable_class.entity is Individus and hasattr(variable_class, 'column_type') and variable_class.name not in (
-                                                'idfam', 'idfoy', 'idmen', 'quifam', 'quifoy', 'quimen')
+                                            if variable_class.entity is Individus and
+                                                hasattr(variable_class, 'column') and
+                                                variable_class.__name__ not in (
+                                                    'idfam', 'idfoy', 'idmen', 'quifam', 'quifoy', 'quimen')
                                             ),
                                         )),
                                     drop_none_values=True,
@@ -265,17 +267,16 @@ class Simulation(AbstractSimulation):
         return json_or_python_to_test_case
 
 
-# TaxBenefitSystems
-
-entities = [Familles, Individus]
-path_to_root_params = os.path.join(openfisca_core_dir, 'openfisca_core', 'tests', 'assets', 'param_root.xml')
-path_to_crds_params = os.path.join(openfisca_core_dir, 'openfisca_core', 'tests', 'assets', 'param_more.xml')
-
-
 class DummyTaxBenefitSystem(TaxBenefitSystem):
     def __init__(self):
-        TaxBenefitSystem.__init__(self, entities)
+        entities = [Familles, Individus]
+        super(DummyTaxBenefitSystem, self).__init__(entities)
 
-        self.add_variable_classes_from_file(__file__)
+        # Variables
+        self.add_variable_classes(id_famille, role_dans_famille)
+
+        # Legislation
+        path_to_root_params = os.path.join(openfisca_core_dir, 'openfisca_core', 'tests', 'assets', 'param_root.xml')
+        path_to_crds_params = os.path.join(openfisca_core_dir, 'openfisca_core', 'tests', 'assets', 'param_more.xml')
         self.add_legislation_params(path_to_root_params)
         self.add_legislation_params(path_to_crds_params, 'csg.activite')

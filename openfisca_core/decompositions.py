@@ -9,6 +9,9 @@ import xml
 from . import conv, decompositionsxml, legislations
 
 
+# TODO Finish porting decompositions
+
+
 def calculate(simulations, decomposition_json):
     response_json = copy.deepcopy(decomposition_json)  # Use decomposition as a skeleton for response.
     for node in iter_decomposition_nodes(response_json, children_first = True):

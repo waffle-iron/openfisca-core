@@ -66,13 +66,8 @@ class Individus(AbstractEntity):
     label = u'Personne'
     symbol = 'ind'
 
+
 # Input variables
-
-
-class age_en_mois(Variable):
-    column = IntCol
-    entity_class = Individus
-    label = u"Âge (en nombre de mois)"
 
 
 class birth(Variable):
@@ -116,12 +111,7 @@ class age(Variable):
     label = u"Âge (en nombre d'années)"
 
     def function(self, simulation, period):
-        birth = simulation.get_array('birth', period)
-        if birth is None:
-            age_en_mois = simulation.get_array('age_en_mois', period)
-            if age_en_mois is not None:
-                return period, age_en_mois // 12
-            birth = simulation.calculate('birth', period)
+        birth = simulation.calculate('birth', period)
         return period, (np.datetime64(period.date) - birth).astype('timedelta64[Y]')
 
 
@@ -212,7 +202,7 @@ class salaire_net(Variable):
 
 
 tax_benefit_system = TaxBenefitSystem([Familles, Individus])
-tax_benefit_system.add_variables(age_en_mois, birth, depcom, id_famille, role_dans_famille, salaire_brut, age,
+tax_benefit_system.add_variables(birth, depcom, id_famille, role_dans_famille, salaire_brut, age,
     dom_tom, dom_tom_individu, revenu_disponible, revenu_disponible_famille, rsa, salaire_imposable, salaire_net)
 
 

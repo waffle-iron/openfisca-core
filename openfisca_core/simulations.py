@@ -1,17 +1,6 @@
 # -*- coding: utf-8 -*-
 
 
-"""
-A simulation contains an instance of each variable class defined by the country tax benefit system.
-
-The creation of a simulation follows these steps :
-* creation of the tax benefit system (loads variable classes)
-* constructor call (__init__() defined in the coutry Simluation class, or the alternative init_test() constructor used for unit tests)
-* checking and processing pipelines using biryani
-* instantiation of every variable of the tax benefit system, filled by input data
-"""
-
-
 import collections
 import itertools
 
@@ -29,11 +18,24 @@ class VariableNotFound(Exception):
     pass
 
 
+class Simulation(object):
+    """
+    A simulation contains an instance of each variable class defined by the country tax benefit system.
 
+    The creation of a simulation follows these steps :
+    * creation of the tax benefit system (loads variable classes)
+    * constructor call (__init__() defined in the country Simluation class,
+        or the alternative init_test() constructor used for unit tests)
+    * checking and processing pipelines using biryani
+    * instantiation of every variable of the tax benefit system, filled by input data
+    """
 
-class AbstractSimulation(object):
     compact_legislation_by_instant_cache = None
     reference_compact_legislation_by_instant_cache = None
+
+    def __init__(self, tax_benefit_system, period):
+        self.tax_benefit_system = tax_benefit_system
+        self.period = period
 
     @classmethod
     def init_test(cls, tax_benefit_system, test, yaml_path, default_absolute_error_margin=None,
@@ -41,40 +43,38 @@ class AbstractSimulation(object):
         self = object.__new__(cls)
         self.tax_benefit_system = tax_benefit_system
 
-        test, error = self.make_json_or_python_to_test(default_absolute_error_margin,
-            default_relative_error_margin)(test)
+        test, error = self.make_json_or_python_to_test(
+            default_absolute_error_margin,
+            default_relative_error_margin,
+            )(test)
         if error is not None:
             embedding_error = conv.embed_error(test, u'errors', error)
             assert embedding_error is None, embedding_error
             raise ValueError("Error in test {}:\n{}\nYaml test content: \n{}\n".format(
                 yaml_path, error, yaml.dump(test, allow_unicode=True,
                 default_flow_style=False, indent=2, width=120)))
-
         self.suggest()
-
         self.instantiate_variables()
-
         return self
+
+    def suggest(self):
+        raise NotImplementedError()
 
     def instantiate_variables(self):
         # concrete class constructor already built a test case (or input_values, not tested yet)
-
-        tbs = self.tax_benefit_system
 
         # Note: Since simulations are short-lived and must be fast, don't use weakrefs for cache.
         self.compact_legislation_by_instant_cache = {}
         self.reference_compact_legislation_by_instant_cache = {}
 
-        self.entities = tbs.entities
-
         self.entity_data = dict(
             (entity, {'count': None})
-            for entity in self.entities
+            for entity in self.tax_benefit_system.entities
             )
         entity_data = self.entity_data
 
         self.persons = None
-        for entity in self.entities:
+        for entity in self.tax_benefit_system.entities:
             if dict(entity).get('is_persons_entity'):
                 assert self.persons is None
                 self.persons = entity
@@ -85,7 +85,7 @@ class AbstractSimulation(object):
         variable_by_name = self.variable_by_name
 
         # instantiate all the variable classes
-        for variable_name, variable_class in tbs.variable_class_by_name.items():
+        for variable_name, variable_class in self.tax_benefit_system.variable_class_by_name.items():
             variable_by_name[variable_name] = variable_class(self)
 
         if not (hasattr(self, 'test_case') and self.test_case):
@@ -101,7 +101,7 @@ class AbstractSimulation(object):
             if entity_data[self.persons]['count'] is None:
                 self.entity_data[self.persons]['count'] = 1
 
-            for entity in self.entities:
+            for entity in self.tax_benefit_system.entities:
                 if entity is self.persons:
                     continue
 
@@ -134,7 +134,7 @@ class AbstractSimulation(object):
                     steps_count *= axis['count']
             self.steps_count = steps_count
 
-            for entity in self.entities:
+            for entity in self.tax_benefit_system.entities:
                 entity_data[entity]['step_size'] = entity_step_size = len(test_case[dict(entity)['key_plural']])
                 entity_data[entity]['count'] = steps_count * entity_step_size
             persons_step_size = entity_data[persons]['step_size']
@@ -144,20 +144,24 @@ class AbstractSimulation(object):
                 for person_index, person in enumerate(test_case[dict(persons)['key_plural']])
                 )
 
-            for entity in self.entities:
+            for entity in self.tax_benefit_system.entities:
                 if dict(entity).get('is_persons_entity'):
                     continue
                 entity_step_size = entity_data[entity]['step_size']
 
                 # person->entity table
                 index_variable = variable_by_name[dict(entity)['index_for_person_variable_name']]
-                index_array = np.empty(steps_count * entity_data[persons]['step_size'],
-                                       dtype=index_variable.dtype)
+                index_array = np.empty(
+                    steps_count * entity_data[persons]['step_size'],
+                    dtype=index_variable.dtype,
+                    )
 
                 # person->role-in-entity table
                 role_variable = variable_by_name[dict(entity)['role_for_person_variable_name']]
-                role_array = np.empty(steps_count * entity_data[persons]['step_size'],
-                                      dtype=index_variable.dtype)
+                role_array = np.empty(
+                    steps_count * entity_data[persons]['step_size'],
+                    dtype=index_variable.dtype,
+                    )
 
                 for member_index, member in enumerate(test_case[dict(entity)['key_plural']]):
                     for person_role, person_id in dict(entity)['iter_member_persons_role_and_id'](member):
@@ -172,7 +176,7 @@ class AbstractSimulation(object):
 
                 entity_data[entity]['roles_count'] = role_array.max() + 1
 
-            for entity in self.entities:
+            for entity in self.tax_benefit_system.entities:
                 used_columns_name = set(
                     key
                     for entity_member in test_case[dict(entity)['key_plural']]
@@ -221,20 +225,24 @@ class AbstractSimulation(object):
             if self.axes is not None:
                 if len(self.axes) == 1:
                     parallel_axes = self.axes[0]
-                    # All parallel axes have the same count and entity.
+                    # All parallel axes have the same count and entity. TODO Check for that
                     first_axis = parallel_axes[0]
                     axis_count = first_axis['count']
                     axis_entity = variable_by_name[first_axis['name']].entity
                     for axis in parallel_axes:
                         axis_period = axis['period'] or self.period
                         variable = variable_by_name[axis['name']]
-                        array = np.empty(entity_data[axis_entity]['count'], dtype=variable.dtype)
-                        array.fill(variable.default)
-                        array[axis['index']::entity_data[axis_entity]['step_size']] = np.linspace(axis['min'], axis['max'], axis_count)
+                        array = variable.get_array(period=axis_period)
+                        if array is None:
+                            array = np.empty(entity_data[axis_entity]['count'], dtype=variable.dtype)
+                            array.fill(variable.default)
+                        array[axis['index']::entity_data[axis_entity]['step_size']] = \
+                            np.linspace(axis['min'], axis['max'], axis_count)
                         variable.set_input(array, period=axis_period)
                 else:
                     # first_axis : local binding error ?
-                    raise Exception('not ready yet')
+                    # TODO
+                    raise NotImplementedError()
 
                     axes_linspaces = [
                         np.linspace(0, first_axis['count'] - 1, first_axis['count'])
@@ -248,10 +256,10 @@ class AbstractSimulation(object):
                         # All parallel axes have the same count and entity.
                         first_axis = parallel_axes[0]
                         axis_count = first_axis['count']
-                        axis_entity = simulation.get_variable_entity(first_axis['name'])
+                        axis_entity = self.get_variable_entity(first_axis['name'])
                         for axis in parallel_axes:
-                            axis_period = axis['period'] or simulation_period
-                            holder = simulation.get_or_new_holder(axis['name'])
+                            axis_period = axis['period'] or self.period
+                            holder = self.get_or_new_holder(axis['name'])
                             column = holder.column
                             array = holder.get_array(axis_period)
                             if array is None:
@@ -392,10 +400,7 @@ class AbstractSimulation(object):
             return self.get_reference_compact_legislation(instant)
         return self.get_compact_legislation(instant)
 
-
     def make_json_or_python_to_attributes(self, repair=False):
-        tbs = self.tax_benefit_system
-
         def json_or_python_to_attributes(value, state=None):
             if value is None:
                 return value, None
@@ -441,18 +446,18 @@ class AbstractSimulation(object):
             if errors:
                 return data, errors
 
-
             if data['axes'] is not None:
                 for parallel_axes_index, parallel_axes in enumerate(data['axes']):
                     first_axis = parallel_axes[0]
                     axis_count = first_axis['count']
-                    axis_entity_key_plural = dict(tbs.get_variable_class(first_axis['name']).entity)['key_plural']
+                    axis_entity_key_plural = dict(
+                        self.tax_benefit_system.get_variable_class(first_axis['name']).entity)['key_plural']
                     first_axis_period = first_axis['period'] or data['period']
                     for axis_index, axis in enumerate(parallel_axes):
                         if axis['min'] >= axis['max']:
                             errors.setdefault('axes', {}).setdefault(parallel_axes_index, {}).setdefault(
                                 axis_index, {})['max'] = state._(u"Max value must be greater than min value")
-                        variable_class = tbs.get_variable_class(axis['name'])
+                        variable_class = self.tax_benefit_system.get_variable_class(axis['name'])
                         if axis['index'] >= len(data['test_case'][dict(variable_class.entity)['key_plural']]):
                             errors.setdefault('axes', {}).setdefault(parallel_axes_index, {}).setdefault(
                                 axis_index, {})['index'] = state._(u"Index must be lower than {}").format(
@@ -546,7 +551,7 @@ class AbstractSimulation(object):
                         ),
                     ).iteritems(),
                 (
-                    # Gather additional keys from TBS entities, customized by each country.
+                    # Gather additional keys from tax_benefit_system entities, customized by each country.
                     (
                         dict(entity_frozenset)['key_plural'],
                         conv.pipe(
@@ -606,15 +611,18 @@ class AbstractSimulation(object):
                 self.absolute_error_margin = default_absolute_error_margin
                 self.relative_error_margin = default_relative_error_margin
 
-            if self.test_case is not None and all(entity_members is None for entity_members in self.test_case.itervalues()):
+            if self.test_case is not None and all(
+                    entity_members is None
+                    for entity_members in self.test_case.itervalues()
+                    ):
                 self.test_case = None
 
             simulation, error = self.make_json_or_python_to_attributes(repair=True)(dict(
-                    axes=self.axes,
-                    input_variables=self.input_variables,
-                    period=self.period,
-                    test_case=self.test_case,
-                    ), state=state)
+                axes=self.axes,
+                input_variables=self.input_variables,
+                period=self.period,
+                test_case=self.test_case,
+                ), state=state)
             if error is not None:
                 return simulation, error
 
@@ -635,6 +643,9 @@ class AbstractSimulation(object):
                 }, None
 
         return json_or_python_to_test
+
+
+# Biryani converters
 
 
 def make_json_or_python_to_axes(tax_benefit_system):
@@ -669,8 +680,9 @@ def make_json_or_python_to_axes(tax_benefit_system):
                                 name=conv.pipe(
                                     conv.test_isinstance(basestring),
                                     conv.test_in(variable_class_by_name),
-                                    conv.test(lambda variable_class_name: tax_benefit_system.get_variable_class(variable_class_name).dtype in (
-                                        np.float32, np.int16, np.int32),
+                                    conv.test(
+                                        lambda name: tax_benefit_system.get_variable_class(name).dtype in
+                                                (np.float32, np.int16, np.int32),
                                         error=N_(u'Invalid type for axe: integer or float expected')),
                                     conv.not_none,
                                     ),
@@ -687,6 +699,7 @@ def make_json_or_python_to_axes(tax_benefit_system):
             ),
         conv.empty_to_none,
         )
+
 
 def make_json_or_python_to_input_variables(tax_benefit_system, period):
     variable_class_by_name = tax_benefit_system.variable_class_by_name
@@ -726,13 +739,14 @@ def make_json_or_python_to_input_variables(tax_benefit_system, period):
                 if entity_count == 0:
                     count_by_entity[entity] = entity_count = len(variable_array)
                 elif len(variable_array) != entity_count:
-                    errors[variable_class.name] = state._(
+                    errors[variable_class.__name__] = state._(
                         u"Array has not the same length as other variables of entity {}: {} instead of {}").format(
-                            variable_class.name, len(variable_array), entity_count)
+                            variable_class.__name__, len(variable_array), entity_count)
 
         return input_variables, errors or None
 
     return json_or_python_to_input_variables
+
 
 def make_json_or_python_to_array_by_period_by_variable_name(tax_benefit_system, period):
     def json_or_python_to_array_by_period_by_variable_name(value, state=None):

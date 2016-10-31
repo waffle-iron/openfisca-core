@@ -98,14 +98,13 @@ class variable8(Variable):
         return period, 8 + variable7
 
 
-# TaxBenefitSystem instance declared after formulas
 tax_benefit_system = dummy_country.DummyTaxBenefitSystem()
 tax_benefit_system.add_variable_classes(variable1, variable2, variable3, variable4,
     variable5, variable6, cotisation, variable7, variable8)
 
 reference_period = periods.period(u'2013')
 
-'''
+
 @raises(AssertionError)
 def test_pure_cycle():
     simulation = Simulation(tax_benefit_system,
@@ -172,4 +171,3 @@ def test_cycle_1_level():
     variable7 = simulation.calculate('variable7')
     # variable8 = simulation.calculate('variable8')
     assert_near(variable7.value, [22])
-'''

@@ -1,17 +1,6 @@
 # -*- coding: utf-8 -*-
 
 
-'''
-A node is a wrapper over the result of a computation.
-
-The node class overrides every operation used by coutry_level codes, including infix operators (+, *, ...).
-Other numpy operators are overloaded in numpy_wrapper.
-
-In this current implementation, a node contains a numpy array.
-Another implementation could defer the computation and contain references to parent nodes.
-'''
-
-
 from __future__ import division
 
 import numpy as np
@@ -34,7 +23,15 @@ class Shell(object):
 
 
 class Node(object):
-    """A container for a numpy array"""
+    '''
+    A Node is a wrapper over the result of a computation.
+
+    The Node class overrides every operation used by country_level codes, including infix operators (+, *, ...).
+    Other numpy operators are overloaded in numpy_wrapper.
+
+    In this current implementation, a Node contains a numpy array.
+    Another implementation could defer the computation and contain references to parent nodes.
+    '''
 
     def __init__(self, value, entity, simulation, default=None):
         # Copy value, otherwise write in cache.

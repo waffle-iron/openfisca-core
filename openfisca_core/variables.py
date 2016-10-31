@@ -1,21 +1,13 @@
 # -*- coding: utf-8 -*-
 
 
-"""
-The Variable class calls coutry_level function and manages period cutting and entity-to-entity manipulations.
-
-A Variable maintains a cache of previously computed (or input) data.
-"""
-
-
-import numpy as np
 import datetime
+import logging
 import re
 
-from biryani import strings
+import numpy as np
 
-import conv
-import periods
+from . import conv, periods
 from .enumerations import Enum
 from .node import Node
 
@@ -24,26 +16,30 @@ def N_(message):
     return message
 
 
-COLUMNS = Enum([
-    'bool',
-    'float',
-    'date',
-    'int',
-    'age',
-    'enum',
-    ])
-
+COLUMNS = Enum(['bool', 'float', 'date', 'int', 'age', 'enum'])
+log = logging.getLogger(__name__)
 year_or_month_or_day_re = re.compile(ur'(18|19|20)\d{2}(-(0?[1-9]|1[0-2])(-([0-2]?\d|3[0-1]))?)?$')
 
 
-
 class Variable(object):
+    """
+    The Variable class calls country_level function and manages period cutting and entity-to-entity manipulations.
+
+    A Variable maintains a cache of previously computed (or input) data.
+    """
     base_function = None  # Assigned by TaxBenefitSystem.load_variable_class
-    function = None
+    column = None
+    function = None  # Maybe defined as a method by child class
+    start_date = None
+    stop_date = None
 
     def __init__(self, simulation):
         self.simulation = simulation
         self._array_by_period = {}     # period (+ extra params) -> value
+
+    @property
+    def name(self):
+        return self.__class__.__name__
 
     def set_input(self, array, period=None):
         self.put_in_cache(array, period)
@@ -64,14 +60,13 @@ class Variable(object):
 
         return
 
-    def get_from_cache(self, period=None, extra_params=None):
+    def get_from_cache(self, period, extra_params=None):
+        assert period is not None
         if self.is_permanent:
             if hasattr(self, 'permanent_array'):
                 return np.copy(self.permanent_array)
             else:
                 return None
-
-        assert period is not None
         if self._array_by_period is not None:
             values = self._array_by_period.get(period)
             if values is not None:
@@ -79,7 +74,7 @@ class Variable(object):
                     key = tuple(extra_params)
                     return np.copy(values.get(key))
                 else:
-                    if(type(values) == dict):
+                    if isinstance(values, dict):
                         return np.copy(values.values()[0])
                     return np.copy(values)
         return None
@@ -118,11 +113,12 @@ class Variable(object):
         raise Exception('Unknown caller_name : {}'.format(caller_name))
 
     def _calculate_one_period(self, period, extra_params):
+        assert extra_params is None or isinstance(extra_params, list) and len(extra_params) > 0
         value = self.get_from_cache(period, extra_params)
         if value is not None:
             return period, Node(value, self.entity, self.simulation, self.default)
 
-        #print('Entering {}.calculate()'.format(self.name))
+        # print('Entering {}.calculate()'.format(self.name))
 
         if self.base_class == DatedVariable:
             for function in self.functions:
@@ -131,7 +127,7 @@ class Variable(object):
                 output_period = period.intersection(function['start_instant'], function['stop_instant'])
                 if output_period is None:
                     continue
-                output_period2, node = function['function'](self, self.simulation, output_period, *extra_params)
+                output_period2, node = function['function'](self, self.simulation, output_period, *(extra_params or []))
                 if node.value.dtype != self.dtype:
                     node.value = node.value.astype(self.dtype)
                 node.default = self.default
@@ -150,20 +146,22 @@ class Variable(object):
             original_variable = self.original_variable
 
             entity = self.entity
-            assert not 'is_persons_entity' in dict(entity)
+            assert 'is_persons_entity' not in dict(entity)
 
             persons = original_variable.entity
             assert 'is_persons_entity' in dict(persons)
 
             # Calculate the original variable
-            variable_node = self.simulation.calculate(original_variable.name, period)
+            variable_node = self.simulation.calculate(original_variable.__name__, period)
 
             count = self.simulation.entity_data[entity]['count']
             target_array = np.empty(count, dtype=variable_node.value.dtype)
             target_array.fill(original_variable.default)
 
-            entity_index_array = self.simulation.variable_by_name[dict(entity)['index_for_person_variable_name']].permanent_array
-            roles_array = self.simulation.variable_by_name[dict(entity)['role_for_person_variable_name']].permanent_array
+            entity_index_array = self.simulation.variable_by_name[
+                dict(entity)['index_for_person_variable_name']].permanent_array
+            roles_array = self.simulation.variable_by_name[
+                dict(entity)['role_for_person_variable_name']].permanent_array
             if self.roles is not None and len(self.roles) == 1:
                 assert self.operation is None, 'Unexpected operation {} in formula {}'.format(self.operation,
                     self.name)
@@ -173,8 +171,7 @@ class Variable(object):
                 target_array[entity_index_array[boolean_filter]] = variable_node.value[boolean_filter]
             else:
                 operation = self.operation
-                assert operation in ('add', 'or'), 'Invalid operation {} in formula {}'.format(operation,
-                    self.name)
+                assert operation in ('add', 'or'), 'Invalid operation {} in formula {}'.format(operation, self.name)
                 if self.roles is None:
                     roles = range(self.simulation.entity_data[entity]['roles_count'])
                 target_array = np.zeros(count, dtype=np.bool if operation == 'or' else
@@ -196,17 +193,19 @@ class Variable(object):
             assert 'is_persons_entity' in dict(persons)
 
             entity = original_variable.entity
-            assert not 'is_persons_entity' in dict(entity)
+            assert 'is_persons_entity' not in dict(entity)
 
             # Calculate the original variable
-            variable_node = self.simulation.calculate(original_variable.name, period)
+            variable_node = self.simulation.calculate(original_variable.__name__, period)
 
             count = self.simulation.entity_data[persons]['count']
             target_array = np.empty(count, dtype=variable_node.value.dtype)
             target_array.fill(original_variable.default)
 
-            entity_index_array = self.simulation.variable_by_name[dict(entity)['index_for_person_variable_name']].permanent_array
-            roles_array = self.simulation.variable_by_name[dict(entity)['role_for_person_variable_name']].permanent_array
+            entity_index_array = self.simulation.variable_by_name[
+                dict(entity)['index_for_person_variable_name']].permanent_array
+            roles_array = self.simulation.variable_by_name[
+                dict(entity)['role_for_person_variable_name']].permanent_array
             if self.roles is None:
                 self.roles = range(self.simulation.entity_data[entity]['roles_count'])
             for role in self.roles:
@@ -260,7 +259,7 @@ class Variable(object):
             else:
                 assert returned_period.unit == u'year', \
                     "Requested a monthly or yearly period. Got {} returned by variable {}.".format(
-                        returned_period, self.column.name)
+                        returned_period, self.name)
                 returned_period_months = returned_period.size * 12
             requested_start_months = requested_start.year * 12 + requested_start.month
             returned_start_months = returned_start.year * 12 + returned_start.month
@@ -301,7 +300,7 @@ class Variable(object):
             # Note: A dated formula may start after requested period.
             # assert returned_start <= requested_start <= returned_period.stop, \
             #     "Period {} returned by variable {} doesn't include start of requested period {}.".format(
-            #         returned_period, self.column.name, requested_period)
+            #         returned_period, self.name, requested_period)
             requested_start_months = requested_start.year * 12 + requested_start.month
             returned_start_months = returned_start.year * 12 + returned_start.month
             if returned_period.unit == u'month':
@@ -311,7 +310,7 @@ class Variable(object):
             else:
                 assert returned_period.unit == u'year', \
                     "Requested a monthly or yearly period. Got {} returned by variable {}.".format(
-                        returned_period, self.column.name)
+                        returned_period, self.name)
                 intersection_months = min(requested_start_months + requested_period.size,
                     returned_start_months + returned_period.size * 12) - requested_start_months
                 intersection_node = subperiod_node * intersection_months / (returned_period.size * 12)
@@ -362,8 +361,8 @@ class Variable(object):
         if entity is None:
             entity = self.entity
         else:
-            entity = [ent for ent in self.simulation.entities if dict(ent)['key_singular'] == entity][0]
-            assert entity in self.simulation.entities, u"Unknown entity: {}".format(entity).encode('utf-8')
+            entity = [ent for ent in self.simulation.tax_benefit_system.entities if dict(ent)['key_singular'] == entity][0]
+            assert entity in self.simulation.tax_benefit_system.entities, u"Unknown entity: {}".format(entity).encode('utf-8')
         assert 'is_persons_entity' not in dict(entity)
 
         count = self.simulation.entity_data[entity]['count']
@@ -373,8 +372,10 @@ class Variable(object):
         if default is None:
             default = node.default or 0.
 
-        entity_index_array = self.simulation.variable_by_name[dict(entity)['index_for_person_variable_name']].permanent_array
-        roles_array = self.simulation.variable_by_name[dict(entity)['role_for_person_variable_name']].permanent_array
+        entity_index_array = self.simulation.variable_by_name[
+            dict(entity)['index_for_person_variable_name']].permanent_array
+        roles_array = self.simulation.variable_by_name[
+            dict(entity)['role_for_person_variable_name']].permanent_array
         if roles is None:
             # To ensure that existing formulas don't fail, ensure there is always at least 11 roles.
             # roles = range(entity.roles_count)
@@ -398,15 +399,17 @@ class Variable(object):
         if entity is None:
             entity = self.entity
         else:
-            entity = [ent for ent in self.simulation.entities if dict(ent)['key_singular'] == entity][0]
-            assert entity in self.simulation.entities, u"Unknown entity: {}".format(entity).encode('utf-8')
-        assert not 'is_persons_entity' in dict(entity)
+            entity = [ent for ent in self.simulation.tax_benefit_system.entities if dict(ent)['key_singular'] == entity][0]
+            assert entity in self.simulation.tax_benefit_system.entities, u"Unknown entity: {}".format(entity).encode('utf-8')
+        assert 'is_persons_entity' not in dict(entity)
 
         count = self.simulation.entity_data[entity]['count']
         assert 'is_persons_entity' in dict(node.entity)
 
-        entity_index_array = self.simulation.variable_by_name[dict(entity)['index_for_person_variable_name']].permanent_array
-        roles_array = self.simulation.variable_by_name[dict(entity)['role_for_person_variable_name']].permanent_array
+        entity_index_array = self.simulation.variable_by_name[
+            dict(entity)['index_for_person_variable_name']].permanent_array
+        roles_array = self.simulation.variable_by_name[
+            dict(entity)['role_for_person_variable_name']].permanent_array
         if roles is None:
             roles = range(self.simulation.entity_data[entity]['roles_count'])
         target_array = np.zeros(count, dtype=np.bool)
@@ -443,18 +446,19 @@ class Variable(object):
         if entity is None:
             entity = node.entity
         else:
-            entity = [ent for ent in self.simulation.entities if dict(ent)['key_singular'] == entity][0]
+            entity = [ent for ent in self.simulation.tax_benefit_system.entities if dict(ent)['key_singular'] == entity][0]
             assert entity == node.entity, \
                 u"""Holder entity "{}" and given entity "{}" don't match""".format(dict(entity)['key_plural'],
                     dict(node.entity)['key_plural']).encode('utf-8')
         if default is None:
             default = node.default or 0.
 
-        assert not 'is_persons_entity' in dict(entity)
+        assert 'is_persons_entity' not in dict(entity)
         persons_count = self.simulation.entity_data[self.simulation.persons]['count']
         target_array = np.empty(persons_count, dtype=node.value.dtype)
         target_array.fill(default)
-        entity_index_array = self.simulation.variable_by_name[dict(entity)['index_for_person_variable_name']].permanent_array
+        entity_index_array = self.simulation.variable_by_name[
+            dict(entity)['index_for_person_variable_name']].permanent_array
         roles_array = self.simulation.variable_by_name[dict(entity)['role_for_person_variable_name']].permanent_array
         if roles is None:
             roles = range(self.simulation.entity_data[entity]['roles_count'])
@@ -487,12 +491,14 @@ class Variable(object):
 
     @classmethod
     def make_json_to_dated_python(cls):
-        if cls.column_type == 'BoolCol':
+        # TODO Create child classes of `Variable`? Like `IntVariable`?
+        column_class_name = cls.column.__class__.__name__
+        if column_class_name == 'BoolCol':
             return conv.pipe(
                 conv.test_isinstance((basestring, bool, int)),
                 conv.guess_bool,
                 )
-        elif cls.column_type == 'DateCol':
+        elif column_class_name == 'DateCol':
             return conv.pipe(
                 conv.condition(
                     conv.test_isinstance(datetime.date),
@@ -513,7 +519,7 @@ class Variable(object):
                     ),
                 conv.test_between(datetime.date(1870, 1, 1), datetime.date(2099, 12, 31)),
                 )
-        elif cls.column_type == 'FixedStrCol':
+        elif column_class_name == 'FixedStrCol':
             return conv.pipe(
                 conv.condition(
                     conv.test_isinstance((float, int)),
@@ -523,17 +529,17 @@ class Variable(object):
                 conv.test_isinstance(basestring),
                 conv.test(lambda value: len(value) <= cls.max_length),
                 )
-        elif cls.column_type == 'FloatCol':
+        elif column_class_name == 'FloatCol':
             return conv.pipe(
                 conv.test_isinstance((float, int, basestring)),
                 conv.make_anything_to_float(accept_expression=True),
                 )
-        elif cls.column_type in ['IntCol', 'PeriodSizeIndependentIntCol']:
+        elif column_class_name in ['IntCol', 'PeriodSizeIndependentIntCol']:
             return conv.pipe(
                 conv.test_isinstance((int, basestring)),
                 conv.make_anything_to_int(accept_expression=True),
                 )
-        elif cls.column_type == 'StrCol':
+        elif column_class_name == 'StrCol':
             return conv.pipe(
                 conv.condition(
                     conv.test_isinstance((float, int)),
@@ -542,7 +548,7 @@ class Variable(object):
                     ),
                 conv.test_isinstance(basestring),
                 )
-        elif cls.column_type == 'AgeCol':
+        elif column_class_name == 'AgeCol':
             return conv.pipe(
                 conv.test_isinstance((int, basestring)),
                 conv.make_anything_to_int(accept_expression=True),
@@ -551,7 +557,7 @@ class Variable(object):
                     conv.test_equals(-9999),
                     ),
                 )
-        elif cls.column_type == 'EnumCol':
+        elif column_class_name == 'EnumCol':
             if not hasattr(cls, 'enum'):
                 return conv.pipe(
                     conv.test_isinstance((basestring, int)),

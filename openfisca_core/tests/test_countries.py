@@ -3,24 +3,20 @@
 import datetime
 
 import numpy as np
-from openfisca_core.numpy_wrapper import startswith, datetime64, logical_or
-from nose.tools import raises
+from nose.tools import assert_equal, raises
 
-from openfisca_core.columns import BoolCol, DateCol, FixedStrCol, FloatCol, IntCol
-from openfisca_core.variables import Variable, EntityToPersonColumn, DatedVariable, PersonToEntityColumn,  dated_function, set_input_divide_by_period
-from openfisca_core.taxbenefitsystems import VariableNameConflict
-from openfisca_core.simulations import VariableNotFound
-from openfisca_core import periods
-from openfisca_core.tests.dummy_country import Familles, Individus, DummyTaxBenefitSystem, Simulation
-from openfisca_core.tools import assert_near
+from ..columns import BoolCol, DateCol, FixedStrCol, FloatCol, IntCol
+from ..variables import (Variable, EntityToPersonColumn, DatedVariable, PersonToEntityColumn, dated_function,
+    set_input_divide_by_period)
+from ..taxbenefitsystems import VariableNameConflict
+from ..simulations import VariableNotFound
+from ..numpy_wrapper import startswith, datetime64, logical_or
+from .. import periods
+from ..tests.dummy_country import Familles, Individus, DummyTaxBenefitSystem, Simulation
+from ..tools import assert_near
+
 
 # Input variables
-
-
-class age_en_mois(Variable):
-    column = IntCol
-    entity_class = Individus
-    label = u"Âge (en nombre de mois)"
 
 
 class birth(Variable):
@@ -33,7 +29,7 @@ class depcom(Variable):
     column = FixedStrCol(max_length = 5)
     entity_class = Familles
     is_permanent = True
-    label = u"""Code INSEE "depcom" de la commune de résidence de la famille"""
+    label = u'Code INSEE "depcom" de la commune de résidence de la famille'
 
 
 class salaire_brut(Variable):
@@ -52,11 +48,6 @@ class age(Variable):
 
     def function(self, simulation, period):
         birth = simulation.calculate('birth', period)
-        if birth is None:
-            age_en_mois = simulation.calculate('age_en_mois', period)
-            if age_en_mois is not None:
-                return period, age_en_mois // 12
-            birth = simulation.calculate('birth', period)
         return period, (datetime64(period.date) - birth).astype('timedelta64[Y]')
 
 
@@ -150,20 +141,15 @@ class salaire_net(Variable):
         return period, salaire_brut * 0.8
 
 
-class TestTaxBenefitSystem(DummyTaxBenefitSystem):
-    def __init__(self):
-        DummyTaxBenefitSystem.__init__(self)
-
-        # We cannot automatically import all the variable from this file, there would be an import loop
-        self.add_variable_classes(age_en_mois, birth, depcom, salaire_brut, age, dom_tom, dom_tom_individu,
-            revenu_disponible_famille, revenu_disponible, rsa, salaire_imposable, salaire_net)
-
-tax_benefit_system = TestTaxBenefitSystem()
+tax_benefit_system = DummyTaxBenefitSystem()
+tax_benefit_system.add_variable_classes(birth, depcom, salaire_brut, age, dom_tom, dom_tom_individu,
+    revenu_disponible_famille, revenu_disponible, rsa, salaire_imposable, salaire_net)
 
 
 def test_1_axis():
     year = 2013
-    simulation = Simulation(tax_benefit_system,
+    simulation = Simulation(
+        tax_benefit_system,
         axes=[
             dict(
                 count=3,
@@ -176,12 +162,17 @@ def test_1_axis():
         parent1={},
         parent2={},
         )
-    assert_near(simulation.calculate('revenu_disponible_famille').value, [7200, 28800, 54000], absolute_error_margin=0.005)
+    assert_near(
+        simulation.calculate('revenu_disponible_famille').value,
+        [7200, 28800, 54000],
+        absolute_error_margin=0.005,
+        )
 
 
 def test_2_parallel_axes_1_constant():
     year = 2013
-    simulation = Simulation(tax_benefit_system,
+    simulation = Simulation(
+        tax_benefit_system,
         axes=[
             [
                 dict(
@@ -203,12 +194,17 @@ def test_2_parallel_axes_1_constant():
         parent1={},
         parent2={},
         )
-    assert_near(simulation.calculate('revenu_disponible_famille').value, [7200, 28800, 54000], absolute_error_margin=0.005)
+    assert_near(
+        simulation.calculate('revenu_disponible_famille').value,
+        [7200, 28800, 54000],
+        absolute_error_margin=0.005,
+        )
 
 
 def test_2_parallel_axes_different_periods():
     year = 2013
-    simulation = Simulation(tax_benefit_system,
+    simulation = Simulation(
+        tax_benefit_system,
         axes=[
             [
                 dict(
@@ -232,17 +228,32 @@ def test_2_parallel_axes_different_periods():
         parent1={},
         parent2={},
         )
-    assert_near(simulation.calculate('salaire_brut', year - 1).value, [0, 0, 60000, 0, 120000, 0], absolute_error_margin=0)
-    assert_near(simulation.calculate('salaire_brut', '{}-01'.format(year - 1)).value, [0, 0, 5000, 0, 10000, 0],
-        absolute_error_margin=0)
-    assert_near(simulation.calculate('salaire_brut', year).value, [0, 0, 0, 60000, 0, 120000], absolute_error_margin=0)
-    assert_near(simulation.calculate('salaire_brut', '{}-01'.format(year)).value, [0, 0, 0, 5000, 0, 10000],
-        absolute_error_margin=0)
+    assert_near(
+        simulation.calculate('salaire_brut', year - 1).value,
+        [0, 0, 60000, 0, 120000, 0],
+        absolute_error_margin=0,
+        )
+    assert_near(
+        simulation.calculate('salaire_brut', '{}-01'.format(year - 1)).value,
+        [0, 0, 5000, 0, 10000, 0],
+        absolute_error_margin=0,
+        )
+    assert_near(
+        simulation.calculate('salaire_brut', year).value,
+        [0, 0, 0, 60000, 0, 120000],
+        absolute_error_margin=0,
+        )
+    assert_near(
+        simulation.calculate('salaire_brut', '{}-01'.format(year)).value,
+        [0, 0, 0, 5000, 0, 10000],
+        absolute_error_margin=0,
+        )
 
 
 def test_2_parallel_axes_same_values():
     year = 2013
-    simulation = Simulation(tax_benefit_system,
+    simulation = Simulation(
+        tax_benefit_system,
         axes=[
             [
                 dict(
@@ -264,32 +275,28 @@ def test_2_parallel_axes_same_values():
         parent1={},
         parent2={},
         )
-    assert_near(simulation.calculate('revenu_disponible_famille').value, [7200, 50400, 100800], absolute_error_margin=0.005)
+    assert_near(
+        simulation.calculate('revenu_disponible_famille').value,
+        [7200, 50400, 100800],
+        absolute_error_margin=0.005,
+        )
 
 
-
-def test_age():
+def test_age_from_birth():
     year = 2013
-    simulation = Simulation(tax_benefit_system,
+    simulation = Simulation(
+        tax_benefit_system,
         period=year,
         parent1=dict(
             birth=datetime.date(year - 40, 1, 1),
             ),
         )
-    assert_near(simulation.calculate('age').value, [40], absolute_error_margin=0.005)
-
-    simulation = Simulation(tax_benefit_system,
-        period=year,
-        parent1=dict(
-            age_en_mois=40 * 12 + 11,
-            ),
-        )
-    assert_near(simulation.calculate('age').value, [40], absolute_error_margin=0.005)
-
+    assert_equal(simulation.calculate('age').value, [40])
 
 
 def check_revenu_disponible(year, depcom, expected_revenu_disponible):
-    simulation = Simulation(tax_benefit_system,
+    simulation = Simulation(
+        tax_benefit_system,
         axes=[
             dict(
                 count=3,
@@ -340,7 +347,8 @@ def test_variable_name_conflict():
 
 @raises(VariableNotFound)
 def test_non_existing_variable():
-    simulation = Simulation(tax_benefit_system,
+    simulation = Simulation(
+        tax_benefit_system,
         period=2013,
         parent1=dict(),
         )
