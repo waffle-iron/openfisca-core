@@ -20,6 +20,7 @@ from .base_functions import (
     requested_period_last_value,
     )
 from .tools import empty_clone, stringify_array
+from .periods import YEAR, MONTH
 
 
 log = logging.getLogger(__name__)
@@ -367,17 +368,26 @@ class SimpleFormula(AbstractFormula):
                     input_variables_infos = [],
                     variable_name = column.name,
                     ))
-            if extra_params:
-                formula_result = self.base_function(simulation, period, *extra_params)
+
+            if self.holder.column.period == YEAR:
+                output_period = period.this_year
+            elif self.holder.column.period == MONTH:
+                output_period = period.this_month
             else:
-                formula_result = self.base_function(simulation, period)
+                output_period = period
+
+            # Cast the period here.
+            if extra_params:
+                formula_result = self.base_function(simulation, output_period, *extra_params)
+            else:
+                formula_result = self.base_function(simulation, output_period)
         except CycleError:
             self.clean_cycle_detection_data()
             if max_nb_cycles is None:
                 # Re-raise until reaching the first variable called with max_nb_cycles != None in the stack.
                 raise
             simulation.max_nb_cycles = None
-            return holder.put_in_cache(self.default_values(), period, extra_params)
+            return holder.put_in_cache(self.default_values(), output_period, extra_params)
         except legislations.ParameterNotFound as exc:
             if exc.variable_name is None:
                 raise legislations.ParameterNotFound(
@@ -393,16 +403,7 @@ class SimpleFormula(AbstractFormula):
                 ))
             raise
         else:
-            try:
-                output_period, array = formula_result
-            except ValueError:
-                raise ValueError(u'A formula must return "period, array": {}@{}<{}> in module {}'.format(
-                    column.name, entity.key, str(period), self.function.__module__,
-                    ).encode('utf-8'))
-        assert output_period[1] <= period[1] <= output_period.stop, \
-            u"Function {}@{}<{}>() --> <{}>{} returns an output period that doesn't include start instant of" \
-            u"requested period".format(column.name, entity.key, str(period), str(output_period),
-                stringify_array(array)).encode('utf-8')
+            array = formula_result
         assert isinstance(array, np.ndarray), u"Function {}@{}<{}>() --> <{}>{} doesn't return a numpy array".format(
             column.name, entity.key, str(period), str(output_period), array).encode('utf-8')
         entity_count = entity.count
@@ -681,7 +682,7 @@ def new_filled_column(base_function = UnboundLocalError, calculate_output = Unbo
         __doc__ = None, __module__ = None,
         entity = UnboundLocalError, formula_class = UnboundLocalError, is_permanent = UnboundLocalError,
         label = UnboundLocalError, law_reference = UnboundLocalError, start_line_number = UnboundLocalError,
-        name = None, reference_column = None, set_input = UnboundLocalError, source_code = UnboundLocalError,
+        name = None, period = None, reference_column = None, set_input = UnboundLocalError, source_code = UnboundLocalError,
         source_file_path = UnboundLocalError, start_date = UnboundLocalError, stop_date = UnboundLocalError,
         url = UnboundLocalError, **specific_attributes):
     # Validate arguments.
@@ -903,6 +904,7 @@ def new_filled_column(base_function = UnboundLocalError, calculate_output = Unbo
     if stop_date is not None:
         column.end = stop_date
     column.entity = entity
+    column.period = period
     column.formula_class = formula_class
     if is_permanent:
         column.is_permanent = True

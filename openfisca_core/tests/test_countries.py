@@ -14,6 +14,7 @@ from openfisca_core import periods
 from openfisca_core.entities import ADD, DIVIDE
 from dummy_country import Famille, Individu, DummyTaxBenefitSystem
 from openfisca_core.tools import assert_near
+from openfisca_core.periods import YEAR as Year, MONTH as Month
 
 # Input variables
 
@@ -61,9 +62,9 @@ class age(Variable):
         if birth is None:
             age_en_mois = simulation.get_array('age_en_mois', period)
             if age_en_mois is not None:
-                return period, age_en_mois // 12
+                return age_en_mois // 12
             birth = simulation.calculate('birth', period)
-        return period, (np.datetime64(period.date) - birth).astype('timedelta64[Y]')
+        return (np.datetime64(period.date) - birth).astype('timedelta64[Y]')
 
 
 class dom_tom(Variable):
@@ -72,101 +73,98 @@ class dom_tom(Variable):
     label = u"La famille habite-t-elle les DOM-TOM ?"
 
     def function(famille, period):
-        period = period.start.period(u'year').offset('first-of')
-
         depcom = famille('depcom', period)
 
-        return period, np.logical_or(startswith(depcom, '97'), startswith(depcom, '98'))
+        return np.logical_or(startswith(depcom, '97'), startswith(depcom, '98'))
 
 
 class revenu_disponible(Variable):
     column = FloatCol
     entity = Individu
     label = u"Revenu disponible de l'individu"
+    period = Year
 
     def function(individu, period, legislation):
-        period = period.start.period(u'year').offset('first-of')
         rsa = individu('rsa', period, options = [ADD])
         salaire_imposable = individu('salaire_imposable', period)
         taux = legislation(period).impot.taux
 
-        return period, rsa + salaire_imposable * (1 - taux)
+        return rsa + salaire_imposable * (1 - taux)
 
 
 class revenu_disponible_famille(Variable):
     column = FloatCol
     entity = Famille
+    period = Year
     label = u"Revenu disponible de la famille"
 
     def function(famille, period):
         revenu_disponible = famille.members('revenu_disponible', period)
-        return period, famille.sum(revenu_disponible)
+        return famille.sum(revenu_disponible)
 
 
 class rsa(DatedVariable):
     column = FloatCol
     entity = Individu
+    period = Month
     label = u"RSA"
 
     @dated_function(datetime.date(2010, 1, 1))
     def function_2010(individu, period):
-        period = period.start.period(u'month').offset('first-of')
         salaire_imposable = individu('salaire_imposable', period, options = [DIVIDE])
 
-        return period, (salaire_imposable < 500) * 100.0
+        return (salaire_imposable < 500) * 100.0
 
     @dated_function(datetime.date(2011, 1, 1), datetime.date(2012, 12, 31))
     def function_2011_2012(individu, period):
-        period = period.start.period(u'month').offset('first-of')
         salaire_imposable = individu('salaire_imposable', period, options = [DIVIDE])
 
-        return period, (salaire_imposable < 500) * 200.0
+        return (salaire_imposable < 500) * 200.0
 
     @dated_function(datetime.date(2013, 1, 1))
     def function_2013(individu, period):
-        period = period.start.period(u'month').offset('first-of')
         salaire_imposable = individu('salaire_imposable', period, options = [DIVIDE])
 
-        return period, (salaire_imposable < 500) * 300
+        return (salaire_imposable < 500) * 300
 
 
 class salaire_imposable(Variable):
     column = FloatCol
     entity = Individu
+    period = Year
     label = u"Salaire imposable"
 
     def function(individu, period):
-        period = period.start.period(u'year').offset('first-of')
         dom_tom = individu.famille('dom_tom', period)
 
         salaire_net = individu('salaire_net', period)
 
-        return period, salaire_net * 0.9 - 100 * dom_tom
+        return salaire_net * 0.9 - 100 * dom_tom
 
 
 class salaire_net(Variable):
     column = FloatCol
     entity = Individu
     label = u"Salaire net"
+    period = Year
 
     def function(individu, period):
-        period = period.start.period(u'year').offset('first-of')
         salaire_brut = individu('salaire_brut', period)
 
-        return period, salaire_brut * 0.8
+        return salaire_brut * 0.8
 
 
 class csg(Variable):
     column = FloatCol
     entity = Individu
     label = u"CSG payées sur le salaire"
+    period = Year
 
     def function(individu, period, legislation):
-        period = period.start.period(u'year').offset('first-of')
         taux = legislation(period).csg.activite.deductible.taux
         salaire_brut = individu('salaire_brut', period)
 
-        return period, taux * salaire_brut
+        return taux * salaire_brut
 
 
 class TestTaxBenefitSystem(DummyTaxBenefitSystem):
@@ -395,7 +393,7 @@ def test_variable_with_reference():
     class revenu_disponible(Variable):
 
         def function(self, simulation, period):
-            return period, self.zeros()
+            return self.zeros()
 
     tax_benefit_system.update_variable(revenu_disponible)
     revenu_disponible_apres_reforme = new_simulation().calculate('revenu_disponible', 2013)
@@ -409,7 +407,7 @@ def test_variable_name_conflict():
         reference = 'revenu_disponible'
 
         def function(self, simulation, period):
-            return period, self.zeros()
+            return self.zeros()
     tax_benefit_system.add_variable(revenu_disponible)
 
 
@@ -421,3 +419,6 @@ def test_non_existing_variable():
         ).new_simulation()
 
     simulation.calculate('non_existent_variable', 2013)
+
+test_revenu_disponible()
+test_2_parallel_axes_same_values()
