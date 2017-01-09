@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.1.8
+
+* Improve docstring of `MarginalTaxRate.inverse` and add test
+
 ## 4.1.7
 
 * Fix occasionnal `NaN` creation in `MarginalRateTaxScale.calc` resulting from `0 * np.inf`
