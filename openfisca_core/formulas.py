@@ -387,11 +387,12 @@ class SimpleFormula(AbstractFormula):
                     )
             else:
                 raise
-        except:
-            log.error(u'An error occurred while calling formula {}@{}<{}> in module {}'.format(
-                column.name, entity.key, str(period), self.function.__module__,
-                ))
-            raise
+        # except Exception as e:
+        #     log.error(u'An error occurred while calling formula {}@{}<{}> in module {}'.format(
+        #         column.name, entity.key, str(period), self.function.__module__,
+        #         ))
+        #     log.error(e)
+        #     raise
         else:
             try:
                 output_period, array = formula_result
@@ -987,6 +988,8 @@ def set_input_divide_by_period(formula, period, array):
             while month.start < after_instant:
                 existing_array = holder.get_array(month)
                 if existing_array is not None:
+                    assert np.isfinite(remaining_array).all(), holder.column.name
+                    assert np.isfinite(existing_array).all(), holder.column.name
                     remaining_array -= existing_array
                     months_count -= 1
                 month = month.offset(1)
