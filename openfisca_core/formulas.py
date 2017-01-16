@@ -412,10 +412,10 @@ class SimpleFormula(AbstractFormula):
                     column.name, entity.key, str(period), array).encode('utf-8')
                 assert np.isfinite(array).all(), u"Function {}@{}<{}> returned nonfinite values : {}".format(
                     column.name, entity.key, str(period), array).encode('utf-8')
-                assert (array > - 1e9).all(), u"Function {}@{}<{}> returned values smaller than -1e9: {}".format(
-                    column.name, entity.key, str(period), array).encode('utf-8')
-                assert (array < 1e9).all(), u"Function {}@{}<{}> returned values larger than 1e9: {}".format(
-                    column.name, entity.key, str(period), array).encode('utf-8')
+                assert (array > - 1e9).all(), u"Function {}@{}<{}> returned {} values smaller than -1e9: {}".format(
+                    column.name, entity.key, str(period), np.sum(array < 1e9), array).encode('utf-8')
+                assert (array < 1e9).all(), u"Function {}@{}<{}> returned {} values larger than 1e9: {}".format(
+                    column.name, entity.key, str(period), np.sum(array < 1e9), array).encode('utf-8')
 
         entity_count = entity.count
         assert array.size == entity_count, \
