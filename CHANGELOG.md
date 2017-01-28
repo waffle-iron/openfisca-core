@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.2.2
+
+  Fix `set_input` and `default` setting in `new_filled_column`
+
 ## 4.2.1
 
   Fix permanent and period size independent variables neutralization
