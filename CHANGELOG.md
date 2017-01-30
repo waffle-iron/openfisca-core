@@ -1,14 +1,16 @@
 # Changelog
 
-## 4.2.2
+## 4.3.1
 
-  Fix `set_input` and `default` setting in `new_filled_column`
+* Fix `set_input` and `default` setting in `new_filled_column`
+
+## 4.3.0
+
+* Add reference documentation
 
 ## 4.2.1
 
-*  Fix permanent and period size independent variables neutralization
-
-* Fix occasionnal `NaN` creation in `MarginalRateTaxScale.calc` resulting from `0 * np.inf`
+* Fix permanent and period size independent variables neutralization
 
 ## 4.2.0
 
