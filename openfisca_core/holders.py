@@ -12,23 +12,26 @@ from .commons import empty_clone
 class DatedHolder(object):
     """A view of an holder, for a given period (and possibly a given set of extra parameters).
     If the variable is not cached, it also contains the value of the variable for the given date."""
+    extra_params = None
     holder = None
     period = None
-    extra_params = None
+    value = None
 
     def __init__(self, holder, period, extra_params = None, value = None):
         self.holder = holder
         self.period = period
-        self.extra_params = extra_params
-        self.value = value
+        if extra_params is not None:
+            self.extra_params = extra_params
+        if value is not None:
+            self.value = value
 
     @property
     def array(self):
-        return self.value if self.value else self.holder.get_array(self.period, self.extra_params)
+        return self.value if self.value is not None else self.holder.get_array(self.period, self.extra_params)
 
     @array.setter
     def array(self, array):
-        if self.value:
+        if self.value is not None:
             self.value = array
         else:
             self.holder.put_in_cache(array, self.period, self.extra_params)
