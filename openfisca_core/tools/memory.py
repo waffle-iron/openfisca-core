@@ -34,22 +34,9 @@ def get_memory_usage(simulation, variables = None):
                     item_size = array.itemsize,
                     dtype = array.dtype,
                     nbytes = array.nbytes * len(periods),
+                    hits = (
+                        sum(hits[0] for hits in holder._hits_by_period.values()),
+                        sum(hits[1] for hits in holder._hits_by_period.values()),
+                        ) if holder._hits_by_period is not None else (None, None),
                     )
     return infos_by_variable
-
-
-def print_memory_usage(simulation):
-    infos_by_variable = get_memory_usage(simulation)
-    infos_lines = list()
-    for variable, infos in infos_by_variable.iteritems():
-        infos_lines.append((infos['nbytes'], variable, "{}: {} periods * {} cells * item size {} ({}) = {}".format(
-            variable,
-            len(infos['periods']),
-            infos['ncells'],
-            infos['item_size'],
-            infos['dtype'],
-            infos['nbytes'],
-            )))
-    infos_lines.sort()
-    for _, _, line in infos_lines:
-        print(line.rjust(100))
