@@ -55,6 +55,7 @@ class DatedHolder(object):
 class Holder(object):
     _array = None  # Only used when column.is_permanent
     _array_by_period = None  # Only used when not column.is_permanent
+    _hits_by_period = None
     column = None
     entity = None
     formula = None
@@ -313,6 +314,14 @@ class Holder(object):
             scalar_array = array
             array = np.empty(self.entity.count, dtype = scalar_array.dtype)
             array.fill(scalar_array)
+
+        hits_by_period = self._hits_by_period
+        if hits_by_period is None:
+            self._hits_by_period = hits_by_period = {}
+        hits = hits_by_period.get(period)
+        if hits is None:
+            hits = (0, 0)
+        hits_by_period[period] = (hits[0] + 1, hits[1] + 1 if array is None else hits[1])
         return array
 
     def graph(self, edges, get_input_variables_and_parameters, nodes, visited):
