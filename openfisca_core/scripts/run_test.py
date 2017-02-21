@@ -4,18 +4,15 @@ import argparse
 import logging
 import sys
 import os
-import importlib
 
 from openfisca_core.tools.test_runner import run_tests
-from openfisca_core.tools import detect_country_packages
+from openfisca_core.scripts import add_tax_benefit_system_arguments, build_tax_benefit_sytem
 
 
 def build_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument('path', help = "paths (files or directories) of tests to execute", nargs = '+')
-    parser.add_argument('-c', '--country_package', action = 'store', help = 'country package to use to run the test. If not provided, an automatic detection will be attempted by scanning the python packages installed in your environment which name contains the word "openfisca".')
-    parser.add_argument('-e', '--extensions', action = 'store', help = 'extensions to load, separated by commas (e.g -e "extension_1, extension_2")')
-    parser.add_argument('-r', '--reforms', action = 'store', help = 'reforms to apply to the country package, separated by commas (e.g -r openfisca_france.reforms.some_reform)')
+    parser = add_tax_benefit_system_arguments(parser)
     parser.add_argument('-f', '--force', action = 'store_true', default = False,
         help = 'force testing of tests with "ignore" flag and formulas belonging to "ignore_output_variables" list')
     parser.add_argument('-n', '--name_filter', default = None, help = "partial name of tests to execute. Only tests with the given name_filter in their name, file name, or keywords will be run.")
