@@ -195,7 +195,8 @@ tax_benefit_system.add_variables(age_en_mois, birth, depcom, salaire_brut, age,
 
 @timeit
 def check_revenu_disponible(year, depcom, expected_revenu_disponible):
-    simulation = simulations.Simulation(period = periods.period(year), tax_benefit_system = tax_benefit_system)
+    period = periods.period(year)
+    simulation = simulations.Simulation(tax_benefit_system)
     famille = simulation.entities["famille"]
     famille.count = 3
     famille.roles_count = 2
@@ -203,11 +204,17 @@ def check_revenu_disponible(year, depcom, expected_revenu_disponible):
     individu = simulation.entities["individu"]
     individu.count = 6
     individu.step_size = 2
-    simulation.get_or_new_holder("depcom").array = np.array([depcom, depcom, depcom])
+    simulation.get_or_new_holder("depcom").put_in_cache(
+        period = period,
+        value = np.array([depcom, depcom, depcom]),
+        )
     famille.members_entity_id = np.array([0, 0, 1, 1, 2, 2])
     famille.members_legacy_role = np.array([PARENT1, PARENT2, PARENT1, PARENT2, PARENT1,
         PARENT2])
-    simulation.get_or_new_holder("salaire_brut").array = np.array([0.0, 0.0, 50000.0, 0.0, 100000.0, 0.0])
+    simulation.get_or_new_holder("salaire_brut").put_in_cache(
+        period = period,
+        value = np.array([0.0, 0.0, 50000.0, 0.0, 100000.0, 0.0]),
+        )
     revenu_disponible = simulation.calculate('revenu_disponible')
     assert_near(revenu_disponible, expected_revenu_disponible, absolute_error_margin = 0.005)
 

@@ -9,6 +9,7 @@ import itertools
 import numpy as np
 
 from . import conv, periods, simulations, json_to_test_case
+from .columns import PERMANENT
 from formulas import SET_INPUT_ADD
 
 
@@ -46,7 +47,6 @@ class AbstractScenario(object):
         if variables_name_to_skip is None:
             variables_name_to_skip = set()
         tbs = self.tax_benefit_system
-        simulation_period = simulation.period
         test_case = self.test_case
 
         persons = simulation.persons
@@ -153,8 +153,12 @@ class AbstractScenario(object):
                             if isinstance(cell, dict):
                                 if any(value is not None for value in cell.itervalues()):
                                     variable_periods.update(cell.iterkeys())
-                            elif cell is not None:
-                                variable_periods.add(simulation_period)
+                            else:
+                                if column.period_behavior == PERMANENT:
+                                    variable_periods.add(None)
+                                else:
+                                    assert cell is None, 'Values for non-permanent variables must have ' + \
+                                        'a period in test case. Got: {}: {}'.format(variable_name, cell)
                         holder = simulation.get_or_new_holder(variable_name)
                         variable_default_value = column.default
                         # Note: For set_input to work, handle days, before months, before years => use sorted().
@@ -163,7 +167,7 @@ class AbstractScenario(object):
                                 variable_default_value if dated_cell is None else dated_cell
                                 for dated_cell in (
                                     cell.get(variable_period) if isinstance(cell, dict) else (cell
-                                        if variable_period == simulation_period else None)
+                                        if variable_period is None else None)
                                     for cell in (
                                         entity_member.get(variable_name)
                                         for entity_member in test_case[entity.plural]
@@ -190,7 +194,7 @@ class AbstractScenario(object):
                     axis_entity_count = axis_entity.count
                     axis_entity_step_size = axis_entity.step_size
                     for axis in parallel_axes:
-                        axis_period = axis['period'] or simulation_period
+                        axis_period = axis['period']
                         holder = simulation.get_or_new_holder(axis['name'])
                         column = holder.column
                         array = holder.get_array(axis_period)
@@ -214,7 +218,7 @@ class AbstractScenario(object):
                         axis_count = first_axis['count']
                         axis_entity = simulation.get_variable_entity(first_axis['name'])
                         for axis in parallel_axes:
-                            axis_period = axis['period'] or simulation_period
+                            axis_period = axis['period']
                             holder = simulation.get_or_new_holder(axis['name'])
                             column = holder.column
                             array = holder.get_array(axis_period)
@@ -354,7 +358,6 @@ class AbstractScenario(object):
         simulation = simulations.Simulation(
             debug = debug,
             debug_all = debug_all,
-            period = self.period,
             tax_benefit_system = tax_benefit_system,
             trace = trace,
             opt_out_cache = opt_out_cache,
@@ -521,6 +524,7 @@ def make_json_or_python_to_axes(tax_benefit_system):
                                     conv.not_none,
                                     ),
                                 # TODO: Check that period is valid in params.
+                                # TODO: Make period mandatory.
                                 period = periods.json_or_python_to_period,
                                 ),
                             ),

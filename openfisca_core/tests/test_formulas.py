@@ -3,6 +3,7 @@
 
 import numpy as np
 
+from openfisca_core import periods
 from openfisca_core.columns import IntCol, MONTH
 from openfisca_core.variables import Variable
 from openfisca_core.formula_helpers import switch
@@ -49,8 +50,9 @@ class uses_switch(Variable):
 # TaxBenefitSystem instance declared after formulas
 tax_benefit_system = dummy_country.DummyTaxBenefitSystem()
 tax_benefit_system.add_variables(choice, uses_multiplication, uses_switch)
+reference_period = periods.period('2013-01')
 scenario = tax_benefit_system.new_scenario().init_from_attributes(
-    period = '2013-01',
+    period = reference_period,
     input_variables = {
         # 'choice': [1, 1, 1, 2],
         'choice': np.random.randint(2, size = 1000) + 1,
@@ -60,18 +62,18 @@ scenario = tax_benefit_system.new_scenario().init_from_attributes(
 
 def test_switch():
     simulation = scenario.new_simulation(debug = True)
-    uses_switch = simulation.calculate('uses_switch')
+    uses_switch = simulation.calculate('uses_switch', reference_period)
     assert isinstance(uses_switch, np.ndarray)
 
 
 def test_multiplication():
     simulation = scenario.new_simulation(debug = True)
-    uses_multiplication = simulation.calculate('uses_multiplication')
+    uses_multiplication = simulation.calculate('uses_multiplication', reference_period)
     assert isinstance(uses_multiplication, np.ndarray)
 
 
 def test_compare_multiplication_and_switch():
     simulation = scenario.new_simulation(debug = True)
-    uses_multiplication = simulation.calculate('uses_multiplication')
-    uses_switch = simulation.calculate('uses_switch')
+    uses_multiplication = simulation.calculate('uses_multiplication', reference_period)
+    uses_switch = simulation.calculate('uses_switch', reference_period)
     assert np.all(uses_switch == uses_multiplication)

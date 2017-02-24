@@ -11,7 +11,6 @@ class Simulation(object):
     compact_legislation_by_instant_cache = None
     debug = False
     debug_all = False  # When False, log only formula calls with non-default parameters.
-    period = None
     reference_compact_legislation_by_instant_cache = None
     stack_trace = None
     steps_count = 1
@@ -19,10 +18,8 @@ class Simulation(object):
     trace = False
     traceback = None
 
-    def __init__(self, debug = False, debug_all = False, period = None, tax_benefit_system = None,
+    def __init__(self, debug = False, debug_all = False, tax_benefit_system = None,
     trace = False, opt_out_cache = False):
-        assert isinstance(period, periods.Period)
-        self.period = period
         self.holder_by_name = {}
 
         # To keep track of the values (formulas and periods) being calculated to detect circular definitions.
@@ -61,26 +58,18 @@ class Simulation(object):
             self.entities[entity_definition.key] = entity
             setattr(self, entity.key, entity)
 
-    def calculate(self, column_name, period = None, **parameters):
-        if period is None:
-            period = self.period
-        return self.compute(column_name, period = period, **parameters).array
+    def calculate(self, column_name, period, **parameters):
+        return self.compute(column_name, period, **parameters).array
 
-    def calculate_add(self, column_name, period = None, **parameters):
-        if period is None:
-            period = self.period
-        return self.compute_add(column_name, period = period, **parameters).array
+    def calculate_add(self, column_name, period, **parameters):
+        return self.compute_add(column_name, period, **parameters).array
 
-    def calculate_divide(self, column_name, period = None, **parameters):
-        if period is None:
-            period = self.period
-        return self.compute_divide(column_name, period = period, **parameters).array
+    def calculate_divide(self, column_name, period, **parameters):
+        return self.compute_divide(column_name, period, **parameters).array
 
-    def calculate_output(self, column_name, period = None):
+    def calculate_output(self, column_name, period):
         """Calculate the value using calculate_output hooks in formula classes."""
-        if period is None:
-            period = self.period
-        elif not isinstance(period, periods.Period):
+        if not isinstance(period, periods.Period):
             period = periods.period(period)
         holder = self.get_or_new_holder(column_name)
         return holder.calculate_output(period)
@@ -113,10 +102,8 @@ class Simulation(object):
             }
         return new
 
-    def compute(self, column_name, period = None, **parameters):
-        if period is None:
-            period = self.period
-        elif not isinstance(period, periods.Period):
+    def compute(self, column_name, period, **parameters):
+        if not isinstance(period, periods.Period):
             period = periods.period(period)
         if (self.debug or self.trace) and self.stack_trace:
             variable_infos = (column_name, period)
@@ -125,13 +112,11 @@ class Simulation(object):
             if variable_infos not in caller_input_variables_infos:
                 caller_input_variables_infos.append(variable_infos)
         holder = self.get_or_new_holder(column_name)
-        result = holder.compute(period = period, **parameters)
+        result = holder.compute(period, **parameters)
         return result
 
-    def compute_add(self, column_name, period = None, **parameters):
-        if period is None:
-            period = self.period
-        elif not isinstance(period, periods.Period):
+    def compute_add(self, column_name, period, **parameters):
+        if not isinstance(period, periods.Period):
             period = periods.period(period)
         if (self.debug or self.trace) and self.stack_trace:
             variable_infos = (column_name, period)
@@ -140,12 +125,10 @@ class Simulation(object):
             if variable_infos not in caller_input_variables_infos:
                 caller_input_variables_infos.append(variable_infos)
         holder = self.get_or_new_holder(column_name)
-        return holder.compute_add(period = period, **parameters)
+        return holder.compute_add(period, **parameters)
 
-    def compute_divide(self, column_name, period = None, **parameters):
-        if period is None:
-            period = self.period
-        elif not isinstance(period, periods.Period):
+    def compute_divide(self, column_name, period, **parameters):
+        if not isinstance(period, periods.Period):
             period = periods.period(period)
         if (self.debug or self.trace) and self.stack_trace:
             variable_infos = (column_name, period)
@@ -154,12 +137,10 @@ class Simulation(object):
             if variable_infos not in caller_input_variables_infos:
                 caller_input_variables_infos.append(variable_infos)
         holder = self.get_or_new_holder(column_name)
-        return holder.compute_divide(period = period, **parameters)
+        return holder.compute_divide(period, **parameters)
 
-    def get_array(self, column_name, period = None):
-        if period is None:
-            period = self.period
-        elif not isinstance(period, periods.Period):
+    def get_array(self, column_name, period):
+        if not isinstance(period, periods.Period):
             period = periods.period(period)
         if (self.debug or self.trace) and self.stack_trace:
             variable_infos = (column_name, period)

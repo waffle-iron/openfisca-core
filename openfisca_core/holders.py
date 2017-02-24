@@ -64,22 +64,11 @@ class Holder(object):
 
     @property
     def array(self):
-        if not self.column.is_permanent:
-            return self.get_array(self.simulation.period)
-        return self._array
+        raise ValueError('Please use Holder.get_array.')
 
     @array.setter
     def array(self, array):
-        if not self.column.is_permanent:
-            return self.put_in_cache(array, self.simulation.period)
-        if self.simulation.debug or self.simulation.trace:
-            variable_infos = (self.column.name, None)
-            step = self.simulation.traceback.get(variable_infos)
-            if step is None:
-                self.simulation.traceback[variable_infos] = dict(
-                    holder = self,
-                    )
-        self._array = array
+        raise ValueError('Impossible to modify Holder.array. Please use Holder.put_in_cache.')
 
     def calculate(self, period = None, **parameters):
         dated_holder = self.compute(period = period, **parameters)
@@ -109,13 +98,11 @@ class Holder(object):
 
         return new
 
-    def compute(self, period = None, **parameters):
+    def compute(self, period, **parameters):
         """Compute array if needed and return a dated holder containing it.
 
         The returned dated holder is always of the requested period and this method never returns None.
         """
-        if period is None:
-            period = self.simulation.period
         column = self.column
 
         # Check that the requested period matches period_behavior
@@ -131,7 +118,9 @@ class Holder(object):
 
         # First look for a value already cached
         dated_holder = self.get_from_cache(period, parameters.get('extra_params'))
-        if dated_holder.array is not None:
+        if self.column.is_permanent and self._array is not None:
+            return self
+        if dated_holder.value is not None:
             return dated_holder
         assert self._array is None  # self._array should always be None when dated_holder.array is None.
 
@@ -200,7 +189,7 @@ class Holder(object):
 
     def get_array(self, period, extra_params = None):
         if self.column.is_permanent:
-            return self.array
+            return self._array
         assert period is not None
         array_by_period = self._array_by_period
         if array_by_period is not None:
@@ -225,12 +214,7 @@ class Holder(object):
             label = column.name,
             title = column.label,
             ))
-        period = self.simulation.period
-        formula = self.formula
-        if formula is None or column.start is not None and column.start > period.stop.date or column.end is not None \
-                and column.end < period.start.date:
-            return
-        formula.graph_parameters(edges, get_input_variables_and_parameters, nodes, visited)
+        self.formula.graph_parameters(edges, get_input_variables_and_parameters, nodes, visited)
 
     @property
     def real_formula(self):
@@ -259,7 +243,7 @@ class Holder(object):
             return DatedHolder(self, period, value, extra_params)
 
         if self.column.is_permanent:
-            self.array = value
+            self._array = value
 
         if simulation.debug or simulation.trace:
             variable_infos = (self.column.name, period)
