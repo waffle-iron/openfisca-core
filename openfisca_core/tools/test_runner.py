@@ -144,9 +144,17 @@ def _generate_tests_from_directory(tax_benefit_system, path_to_dir, options):
     yaml_paths = glob.glob(os.path.join(path_to_dir, "*.yaml"))
     subdirectories = glob.glob(os.path.join(path_to_dir, "*/"))
 
+
+    # Handle parallel testing
+    nb_nodes = int(options.get('nb_nodes', 1))
+    node_index = int(options.get('node_index', 0))
+
+    test_index = -1  # will be incremented when entering the loop
     for yaml_path in yaml_paths:
         for test in _generate_tests_from_file(tax_benefit_system, yaml_path, options):
-            yield test
+            test_index += 1
+            if test_index % nb_nodes == node_index:
+                yield test
 
     for subdirectory in subdirectories:
         for test in _generate_tests_from_directory(tax_benefit_system, subdirectory, options):
