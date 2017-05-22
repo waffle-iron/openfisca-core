@@ -10,7 +10,9 @@ import glob
 import os
 import yaml
 import numpy as np
+import sys
 
+from nose.core import run
 from openfisca_core import conv, periods, scenarios
 from openfisca_core.tools import assert_near
 
@@ -98,12 +100,20 @@ def run_tests(tax_benefit_system, path, options = {}):
 
     """
 
-    nb_tests = 0
-    for test in generate_tests(tax_benefit_system, path, options):
-        test()
-        nb_tests += 1
+    if options.get('nose'):
 
-    return nb_tests  # Nb of sucessful tests
+        if '--nose' in sys.argv:
+            sys.argv.remove('--nose')
+        if '-N' in sys.argv:
+            sys.argv.remove('-N')
+        run(generate_tests(tax_benefit_system, path, options))
+    else:
+        nb_tests = 0
+        for test in generate_tests(tax_benefit_system, path, options):
+            test()
+            nb_tests += 1
+
+        return nb_tests  # Nb of sucessful tests
 
 
 # Internal methods

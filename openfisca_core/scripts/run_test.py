@@ -15,6 +15,7 @@ def build_parser():
     parser = add_tax_benefit_system_arguments(parser)
     parser.add_argument('-n', '--name_filter', default = None, help = "partial name of tests to execute. Only tests with the given name_filter in their name, file name, or keywords will be run.")
     parser.add_argument('-v', '--verbose', action = 'store_true', default = False, help = "increase output verbosity")
+    parser.add_argument('-N', '--nose', action = 'store_true', default = False, help = "use nose to run the tests")
 
     return parser
 
@@ -29,6 +30,7 @@ def main():
     options = {
         'verbose': args.verbose,
         'name_filter': args.name_filter,
+        'nose': args.nose
         }
 
     tests_found = False
