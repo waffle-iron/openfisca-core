@@ -74,53 +74,24 @@ def generate_tests(tax_benefit_system, path, options = {}):
     else:
         return _generate_tests_from_file(tax_benefit_system, path, options)
 
+class TestGeneratorWrapper(unittest.TestSuite):
+
+    def __init__(self, generator):
+        self._tests = generator
+
+    # def __call__(self, result):
+    #     for test in self.generator:
+    #         test.run(result)
+
 
 def run_tests(tax_benefit_system, path, options = {}):
-    """
-    Runs all the YAML tests contained in a file or a directory.
-
-    If `path` is a directory, subdirectories will be recursively explored.
-
-    :param TaxBenefitSystem tax_benefit_system: the tax-benefit system to use to run the tests
-    :param str path: the path towards the file or directory containing thes tests. If it is a directory, subdirectories will be recursively explored.
-    :param dict options: See more details below.
-
-    :raises AssertionError: if a test does not pass
-
-    :return: the number of sucessful tests excecuted
-
-    **Testing options**:
-
-    +-------------------------------+-----------+-------------------------------------------+
-    | Key                           | Type      | Role                                      |
-    +===============================+===========+===========================================+
-    | verbose                       | ``bool``  |                                           |
-    +-------------------------------+-----------+                                           +
-    | name_filter                   | ``str``   | See :any:`openfisca-run-test` options doc |
-    +-------------------------------+-----------+-------------------------------------------+
-
-    """
-
     if options.get('nose'):
-        # PB : Quand on run la suite, tous les tests sont les même, en l'occurence le dernier du générateur
+
+        # runner = unittest.TextTestRunner(verbosity = 1, buffer = True)
+        generator = TestGeneratorWrapper(generate_tests(tax_benefit_system, path, options))
         import nose
-        suite = unittest.TestSuite()
-        generator = generate_tests(tax_benefit_system, path, options)
-        for test in generator:
-            test.run()
-            suite.addTest(test) # ça doit bugguer parce qu'ils ont tous le même nom
-        import nose.tools; nose.tools.set_trace(); import ipdb; ipdb.set_trace()
-        # suite = nose.suite.LazySuite(generator)
-        # suite = nose.suite.LazySuite(generator.next)
-        import sys
-        sys.argv = sys.argv[:1]
-        # import nose.tools; nose.tools.set_trace(); import ipdb; ipdb.set_trace()
-        # unittest.TextTestRunner(verbosity = 1, buffer=True).run(suite)
-        # from pprint import pprint
-        # import ipdb
-        # ipdb.set_trace()
-        nose.run(suite = suite)
-        # TextTestRunner(stream=sys.stderr, descriptions=True, verbosity=1, failfast=False, buffer=False, resultclass=None)
+        nose.run(suite=generator, argv=sys.argv[:1])
+        # runner.run(generator)
     else:
         nb_tests = 0
         for test in generate_tests(tax_benefit_system, path, options):
@@ -161,10 +132,7 @@ def _generate_tests_from_file(tax_benefit_system, path_to_file, options):
             print("=" * len(title))
             _run_test(period_str, test, verbose, options)
 
-        if options.get('nose'):
-            yield unittest.FunctionTestCase(check)
-        else:
-            yield check
+        yield unittest.FunctionTestCase(check)
 
 
 def _generate_tests_from_directory(tax_benefit_system, path_to_dir, options):
