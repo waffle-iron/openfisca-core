@@ -76,6 +76,30 @@ def generate_tests(tax_benefit_system, path, options = {}):
 
 
 def run_tests(tax_benefit_system, path, options = {}):
+    """
+    Runs all the YAML tests contained in a file or a directory.
+
+    If `path` is a directory, subdirectories will be recursively explored.
+
+    :param TaxBenefitSystem tax_benefit_system: the tax-benefit system to use to run the tests
+    :param str path: the path towards the file or directory containing thes tests. If it is a directory, subdirectories will be recursively explored.
+    :param dict options: See more details below.
+
+    :raises AssertionError: if a test does not pass
+
+    :return: the number of sucessful tests excecuted
+
+    **Testing options**:
+
+    +-------------------------------+-----------+-------------------------------------------+
+    | Key                           | Type      | Role                                      |
+    +===============================+===========+===========================================+
+    | verbose                       | ``bool``  |                                           |
+    +-------------------------------+-----------+                                           +
+    | name_filter                   | ``str``   | See :any:`openfisca-run-test` options doc |
+    +-------------------------------+-----------+-------------------------------------------+
+
+    """
     if options.get('nose'):
         import nose
         nose.run(
