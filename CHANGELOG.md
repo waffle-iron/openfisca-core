@@ -1,5 +1,13 @@
 # Changelog
 
+## 12.2.0
+
+* Improve the `openfisca-run-test` script
+  - Add a `--nose` option to run the tests with nose.
+    - This avoids boilerplate code on country packages
+  - Add a `--node-index` and a `--nb-nodes` options to handle parallelism.
+    - For instance with Circle CI
+
 ## 12.1.4
 
 * Fix package naming conflict between the preview API and the official one.
