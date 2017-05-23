@@ -74,24 +74,16 @@ def generate_tests(tax_benefit_system, path, options = {}):
     else:
         return _generate_tests_from_file(tax_benefit_system, path, options)
 
-class TestGeneratorWrapper(unittest.TestSuite):
-
-    def __init__(self, generator):
-        self._tests = generator
-
-    # def __call__(self, result):
-    #     for test in self.generator:
-    #         test.run(result)
-
 
 def run_tests(tax_benefit_system, path, options = {}):
     if options.get('nose'):
-
-        # runner = unittest.TextTestRunner(verbosity = 1, buffer = True)
-        generator = TestGeneratorWrapper(generate_tests(tax_benefit_system, path, options))
         import nose
-        nose.run(suite=generator, argv=sys.argv[:1])
-        # runner.run(generator)
+        nose.run(
+            # The suite argument must be a lambda for nose to run the tests lazily
+            suite = lambda: generate_tests(tax_benefit_system, path, options),
+            # Nose crashes if it gets any unexpected argument.
+            argv = sys.argv[:1]
+            )
     else:
         nb_tests = 0
         for test in generate_tests(tax_benefit_system, path, options):
@@ -132,7 +124,10 @@ def _generate_tests_from_file(tax_benefit_system, path_to_file, options):
             print("=" * len(title))
             _run_test(period_str, test, verbose, options)
 
-        yield unittest.FunctionTestCase(check)
+        if options.get('nose'):
+            yield unittest.FunctionTestCase(check)
+        else:
+            yield check
 
 
 def _generate_tests_from_directory(tax_benefit_system, path_to_dir, options):
