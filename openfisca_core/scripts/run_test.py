@@ -40,7 +40,7 @@ def main():
         nb_tests = run_tests(tax_benefit_system, path, options)
         tests_found = tests_found or nb_tests > 0
 
-    if not tests_found:
+    if not tests_found and not args.nose:
         print("No tests found!")
         sys.exit(1)
 

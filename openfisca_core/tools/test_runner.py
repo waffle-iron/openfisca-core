@@ -11,6 +11,7 @@ import os
 import yaml
 import numpy as np
 import sys
+import unittest
 
 from nose.core import run
 from openfisca_core import conv, periods, scenarios
@@ -102,11 +103,16 @@ def run_tests(tax_benefit_system, path, options = {}):
 
     if options.get('nose'):
 
-        if '--nose' in sys.argv:
-            sys.argv.remove('--nose')
-        if '-N' in sys.argv:
-            sys.argv.remove('-N')
-        run(generate_tests(tax_benefit_system, path, options))
+        def generator():
+            for test in generate_tests(tax_benefit_system, path, options):
+                yield unittest.FunctionTestCase(test)
+
+        suite = unittest.TestSuite(generator())
+        import nose
+        import sys
+        sys.argv = sys.argv[:1]
+        nose.run(suite = suite)
+
     else:
         nb_tests = 0
         for test in generate_tests(tax_benefit_system, path, options):
