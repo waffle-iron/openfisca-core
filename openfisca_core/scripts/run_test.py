@@ -16,6 +16,8 @@ def build_parser():
     parser.add_argument('-n', '--name_filter', default = None, help = "partial name of tests to execute. Only tests with the given name_filter in their name, file name, or keywords will be run.")
     parser.add_argument('-v', '--verbose', action = 'store_true', default = False, help = "increase output verbosity")
     parser.add_argument('--nose', action = 'store_true', default = False, help = "use nosetests to run the tests")
+    parser.add_argument('--nb-nodes', default = 1, help = "number of nodes used in case of parallel testing")
+    parser.add_argument('--node-index', default = 0, help = "index of the current node in case of parallel testing")
 
     return parser
 
@@ -30,7 +32,9 @@ def main():
     options = {
         'verbose': args.verbose,
         'name_filter': args.name_filter,
-        'nose': args.nose
+        'nose': args.nose,
+        'nb_nodes': args.nb_nodes,
+        'node_index': args.node_index,
         }
 
     tests_found = False
