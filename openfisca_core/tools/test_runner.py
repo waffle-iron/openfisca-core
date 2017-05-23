@@ -102,12 +102,7 @@ def run_tests(tax_benefit_system, path, options = {}):
     """
 
     if options.get('nose'):
-
-        def generator():
-            for test in generate_tests(tax_benefit_system, path, options):
-                yield unittest.FunctionTestCase(test)
-
-        suite = unittest.TestSuite(generator())
+        suite = unittest.TestSuite(generate_tests(tax_benefit_system, path, options))
         import nose
         import sys
         sys.argv = sys.argv[:1]
@@ -153,7 +148,10 @@ def _generate_tests_from_file(tax_benefit_system, path_to_file, options):
             print("=" * len(title))
             _run_test(period_str, test, verbose, options)
 
-        yield check
+        if options.get('nose'):
+            yield unittest.FunctionTestCase(check)
+        else:
+            yield check
 
 
 def _generate_tests_from_directory(tax_benefit_system, path_to_dir, options):
