@@ -102,12 +102,25 @@ def run_tests(tax_benefit_system, path, options = {}):
     """
 
     if options.get('nose'):
-        suite = unittest.TestSuite(generate_tests(tax_benefit_system, path, options))
+        # PB : Quand on run la suite, tous les tests sont les même, en l'occurence le dernier du générateur
         import nose
+        suite = unittest.TestSuite()
+        generator = generate_tests(tax_benefit_system, path, options)
+        for test in generator:
+            test.run()
+            suite.addTest(test) # ça doit bugguer parce qu'ils ont tous le même nom
+        import nose.tools; nose.tools.set_trace(); import ipdb; ipdb.set_trace()
+        # suite = nose.suite.LazySuite(generator)
+        # suite = nose.suite.LazySuite(generator.next)
         import sys
         sys.argv = sys.argv[:1]
+        # import nose.tools; nose.tools.set_trace(); import ipdb; ipdb.set_trace()
+        # unittest.TextTestRunner(verbosity = 1, buffer=True).run(suite)
+        # from pprint import pprint
+        # import ipdb
+        # ipdb.set_trace()
         nose.run(suite = suite)
-
+        # TextTestRunner(stream=sys.stderr, descriptions=True, verbosity=1, failfast=False, buffer=False, resultclass=None)
     else:
         nb_tests = 0
         for test in generate_tests(tax_benefit_system, path, options):
